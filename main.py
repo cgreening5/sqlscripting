@@ -74,15 +74,66 @@ def script_insert(table_name, id, conn, schema='dbo', fk_value_map=None, identit
         insert_sql += f"\nDECLARE @{identity_var} INT = SCOPE_IDENTITY();"
     return insert_sql, identity_col, identity_var
 
-def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo', fk_value_map=None, identity_var=None, script_list=None):
+def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo', fk_value_map=None, identity_var=None, script_list=None, foreign_keys=None):
     if visited is None:
         visited = set()
     if script_list is None:
         script_list = []
+    if foreign_keys is None:
+        foreign_keys = []
     key = (schema, table_name, id)
     if key in visited:
         return script_list
     visited.add(key)
+
+    cursor = conn.cursor()
+
+    # Handle specified foreign keys: copy referenced rows and update fk_value_map
+    if foreign_keys:
+        print(table_name, foreign_keys)
+        for fk in foreign_keys:
+            # Get referenced table and column for this foreign key
+            cursor.execute(f"""
+                SELECT pk_schema.name, pk_tab.name, pk_col.name, fk_col.name
+                FROM sys.foreign_key_columns fkc
+					INNER JOIN sys.foreign_keys fk on fk.object_id = fkc.constraint_object_id
+					INNER JOIN sys.tables fk_tab ON fk_tab.object_id = fkc.parent_object_id
+					INNER JOIN sys.columns fk_col ON fk_col.column_id = fkc.parent_column_id 
+						AND fk_col.object_id = fk_tab.object_id
+					INNER JOIN sys.tables pk_tab ON pk_tab.object_id = fkc.referenced_object_id
+					INNER JOIN sys.columns pk_col ON pk_col.column_id = fkc.referenced_column_id AND pk_col.object_id = pk_tab.object_id
+					INNER JOIN sys.schemas pk_schema ON pk_schema.schema_id = pk_tab.schema_id
+                WHERE fk_tab.name = ?
+					AND OBJECT_NAME(fkc.constraint_object_id) = ?
+            """, table_name, fk)
+            result = cursor.fetchone()
+            if not result:
+                # Foreign key not present in this table, skip
+                continue
+            ref_schema, ref_table, ref_pk_col, fk_col = result
+            print(f"""
+                SELECT [{fk_col}]
+                FROM [{schema}].[{table_name}]
+                WHERE [{table_name}_id] = ?
+            """, id)
+            # Get referenced id value from the main row
+            cursor.execute(f"""
+                SELECT [{fk_col}]
+                FROM [{schema}].[{table_name}]
+                WHERE [{table_name}_id] = ?
+            """, id)
+            ref_id_row = cursor.fetchone()
+            if not ref_id_row:
+                # No value for this FK in this row, skip
+                continue
+            ref_id = ref_id_row[0]
+
+            # Recursively copy the referenced row, passing foreign_keys
+            script_insert_with_related(ref_table, ref_id, conn, visited, schema=ref_schema, foreign_keys=foreign_keys)
+            # Map the FK column to the new variable
+            if fk_value_map is None:
+                fk_value_map = {}
+            fk_value_map[fk_col] = f"@{ref_table}_id_{ref_id}"
 
     # Insert for the main row
     insert_sql, identity_col, identity_var = script_insert(
@@ -91,8 +142,6 @@ def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo',
     if insert_sql:
         script_list.append(insert_sql)
 
-    cursor = conn.cursor()
-    # Find referencing tables and columns
     cursor.execute(f"""
         SELECT fk_schema.name AS referencing_schema, fk_tab.name AS referencing_table, fk_col.name AS referencing_column
         FROM sys.foreign_key_columns fkc
@@ -106,7 +155,6 @@ def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo',
     referencing = cursor.fetchall()
 
     for ref_schema, ref_table, ref_column in referencing:
-        
         cursor.execute(f"""
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
@@ -117,7 +165,6 @@ def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo',
             raise Exception("Unable to find identity column for table " + ref_table)
         ref_pk_col = ref_pk_col[0]
 
-        # Find rows in referencing table that point to this id
         cursor.execute(f"""
             SELECT {ref_pk_col}
             FROM [{ref_schema}].[{ref_table}]
@@ -126,11 +173,10 @@ def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo',
         rows = cursor.fetchall()
         for row in rows:
             ref_id = row[0]
-            # For referencing table, set its FK column to use the identity variable from parent
             fk_map = {ref_column: f"@{identity_var}"}
             script_insert_with_related(
                 ref_table, ref_id, conn, visited, schema=ref_schema,
-                fk_value_map=fk_map, identity_var=None, script_list=script_list
+                fk_value_map=fk_map, identity_var=None, script_list=script_list, foreign_keys=foreign_keys
             )
     return script_list
 
@@ -204,17 +250,19 @@ def main():
     parser.add_argument('table_name', help='Name of the table to operate on')   
     parser.add_argument('id', help='ID of the row to operate on')
     parser.add_argument('--schema', default='dbo', help='Schema of the table (default: dbo)')
+    parser.add_argument('-f', '--foreign-key', action='append', help='Copy row referenced by foreign key', dest='foreign_keys')
     args = parser.parse_args()
     action = args.action
     table_name = args.table_name
     id = args.id
     schema = args.schema
     id = sys.argv[3]
+    foreign_keys = args.foreign_keys
     conn = get_sql_connection()
     if action == 'delete':
         lines = script_delete_with_related(table_name, id, conn, schema=schema)
     else:
-        lines = script_insert_with_related(table_name, id, conn, schema=schema)
+        lines = script_insert_with_related(table_name, id, conn, schema=schema, foreign_keys=foreign_keys)
     print('\n\n'.join(lines))
 
 if __name__ == "__main__":
