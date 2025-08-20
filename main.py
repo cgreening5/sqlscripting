@@ -20,12 +20,16 @@ def script_insert(table_name, id, conn, schema='dbo', fk_value_map=None, identit
         raise Exception("Unable to find identity column for table " + table_name)
     identity_col = cols[0]
 
-    # Get non-identity columns
+    # Get non-identity, non-generated, non-period columns
     cursor.execute(f"""
-        SELECT COLUMN_NAME
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = ? AND COLUMNPROPERTY(object_id('[{schema}].[{table_name}]'), COLUMN_NAME, 'IsIdentity') = 0
-        ORDER BY ORDINAL_POSITION
+        SELECT c.COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS c
+        LEFT JOIN sys.columns sc ON sc.object_id = object_id('[{schema}].[{table_name}]') AND sc.name = c.COLUMN_NAME
+        WHERE c.TABLE_NAME = ?
+          AND COLUMNPROPERTY(object_id('[{schema}].[{table_name}]'), c.COLUMN_NAME, 'IsIdentity') = 0
+          AND (sc.is_computed = 0 OR sc.is_computed IS NULL)
+          AND (sc.is_hidden = 0 OR sc.is_hidden IS NULL)
+        ORDER BY c.ORDINAL_POSITION
     """, table_name)
     columns = [row[0] for row in cursor.fetchall()]
 
