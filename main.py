@@ -106,9 +106,20 @@ def script_insert_with_related(table_name, id, conn, visited=None, schema='dbo',
     referencing = cursor.fetchall()
 
     for ref_schema, ref_table, ref_column in referencing:
+        
+        cursor.execute(f"""
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = ? AND COLUMNPROPERTY(object_id('[{ref_schema}].[{ref_table}]'), COLUMN_NAME, 'IsIdentity') = 1
+        """, ref_table)
+        ref_pk_col = cursor.fetchone()
+        if ref_pk_col is None:
+            raise Exception("Unable to find identity column for table " + ref_table)
+        ref_pk_col = ref_pk_col[0]
+
         # Find rows in referencing table that point to this id
         cursor.execute(f"""
-            SELECT {ref_column}
+            SELECT {ref_pk_col}
             FROM [{ref_schema}].[{ref_table}]
             WHERE {ref_column} = ?
         """, id)
@@ -159,11 +170,19 @@ def script_delete_with_related(table_name, id, conn, schema='dbo', visited=None,
     referencing = cursor.fetchall()
 
     for ref_schema, ref_table, ref_column in referencing:
+        # Get the identity column (primary key) of the referencing table
+        cursor.execute(f"""
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = ? AND COLUMNPROPERTY(object_id('[{ref_schema}].[{ref_table}]'), COLUMN_NAME, 'IsIdentity') = 1
+        """, ref_table)
+        ref_pk_col = cursor.fetchone()[0]
+
         # Find rows in referencing table that point to this id
         cursor.execute(f"""
-            SELECT {ref_column}
+            SELECT [{ref_pk_col}]
             FROM [{ref_schema}].[{ref_table}]
-            WHERE {ref_column} = ?
+            WHERE [{ref_column}] = ?
         """, id)
         rows = cursor.fetchall()
         for row in rows:
