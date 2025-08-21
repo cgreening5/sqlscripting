@@ -1,10 +1,9 @@
 import pyodbc
-import sys
 import argparse
 
 from dataservice import DataService
 from node import Builder
-from scripter import Scripter
+from scripter import DeleteScripter, InsertScripter
 
 def get_sql_connection():
     # Read connection string from file
@@ -23,7 +22,7 @@ def main():
     args = parser.parse_args()
     conn = get_sql_connection()
     node = Builder(DataService(conn), args.foreign_keys).build_node(args.schema, args.table_name, args.id)
-    lines = Scripter(node).script()
+    lines = (InsertScripter if args.action == 'insert' else DeleteScripter)(node).script()
     print('\n\n'.join(lines))
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ class Builder:
     def __init__(self, dataservice: DataService, foreign_keys):
         self.dataservice = dataservice
         self.visited = {}
-        self.foreign_keys = foreign_keys
+        self.foreign_keys = foreign_keys if foreign_keys else []
 
     def build_node(self, schema, table_name, id):
         node = self._build_node(schema, table_name, id)
