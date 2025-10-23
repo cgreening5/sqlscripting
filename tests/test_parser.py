@@ -1,7 +1,7 @@
 
 from parsing.tokenizer import Token, Tokenizer
 import unittest
-from parsing.parser import DataTypeClause, DeclareTableVariableClause, DeclareVariableClause, Parser, UseClause
+from parsing.parser import DataTypeClause, DeclareTableVariableClause, DeclareVariableClause, Parser, TextDataTypeClause, UseClause
 
 
 class TestParser(unittest.TestCase):
@@ -56,3 +56,20 @@ class TestParser(unittest.TestCase):
         column_name, column_type = table_def.columns[0]
         self.assertEqual(column_name.token.value, 'id')
         self.assertEqual(column_type.datatype.token.value, 'INT')
+
+    def test_declare_table_with_text_datatype(self):
+        """DECLARE @var AS TABLE (description NVARCHAR(100));"""
+        self.parser = Parser(self.tokenize("DECLARE @var AS TABLE (description NVARCHAR(100));"))
+        parsed_clauses = self.parser.parse()
+
+        self.assertEqual(len(parsed_clauses), 1)
+        declare_clause = parsed_clauses[0]
+        self.assertIsInstance(declare_clause, DeclareTableVariableClause)
+        self.assertEqual(declare_clause.name.token.value, '@var')
+        table_def = declare_clause.table_definition
+        self.assertEqual(len(table_def.columns), 1)
+        column_name, column_type = table_def.columns[0]
+        self.assertEqual(column_name.token.value, 'description')
+        self.assertIsInstance(column_type, TextDataTypeClause)
+        self.assertEqual(column_type.datatype.token.value, 'NVARCHAR')
+        self.assertEqual(column_type.length.token.value, '100')

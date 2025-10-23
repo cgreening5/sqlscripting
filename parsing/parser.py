@@ -178,7 +178,7 @@ class Parser():
             self._expect(Token.WORD),
             list(self._consume_whitespace_and_newlines())
         )
-        if datatype in TextDataTypeClause.TEXT_TYPES:
+        if datatype.token.value in TextDataTypeClause.TEXT_TYPES:
             open_paren = TokenContext(
                 self._expect(Token.SYMBOL, '('),
                 list(self._consume_whitespace_and_newlines())
