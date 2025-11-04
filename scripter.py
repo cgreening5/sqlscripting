@@ -3,19 +3,25 @@ from node import Node
 
 class InsertScripter:
 
-    def __init__(self, node: Node, print_summary=True):
+    def __init__(self, node: Node, print_summary=True, transaction=False):
         self.node = node
         self.lines = []
         self.summary = {}
         self.visited = set()
         self.print_summary = print_summary
+        self.transaction = transaction
 
     def script(self):
+        if self.transaction:
+            self.lines.append("BEGIN TRANSACTION;\n")
+            self.lines.append("SET XACT_ABORT ON;\n")
         self._script(self.node)
         if self.print_summary:
             print("-- Summary of changes:")
             for table, count in self.summary.items():
                 print(f"-- - {count} inserts to {table}")
+        if self.transaction:
+            self.lines.append("COMMIT TRANSACTION;\n")
         return self.lines
 
     def _script(self, node):
@@ -56,15 +62,21 @@ class InsertScripter:
     
 class DeleteScripter:
 
-    def __init__(self, node: Node, print_summary=True):
+    def __init__(self, node: Node, print_summary=True, transaction=False):
         self.node = node
         self.lines = []
         self.summary = {}
         self.visited = set()
         self.print_summary = print_summary
+        self.transaction = transaction
 
     def script(self):
+        if self.transaction:
+            self.lines.append("BEGIN TRANSACTION;\n")
+            self.lines.append("SET XACT_ABORT ON;\n")
         self._script(self.node)
+        if self.transaction:
+            self.lines.append("COMMIT TRANSACTION;\n")
         return self.lines
 
     def _script(self, node):

@@ -154,7 +154,7 @@ class Parser():
             list(self._consume_whitespace_and_newlines())
         )
         datatype = self.expect_datatype()
-        columns.append((variable, datatype))
+        columns.append([variable, datatype])
         while self._curr().type == Token.SYMBOL and self._curr().value == ',':
             comma = TokenContext(
                 self._expect(Token.SYMBOL, ','),
