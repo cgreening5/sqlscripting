@@ -15,7 +15,25 @@ class TestTokenizer(unittest.TestCase):
             Token(Token.SYMBOL, ';')
         ]
 
-        self.assertEqual(len(tokens), len(expected_tokens))
-        for token, expected in zip(tokens, expected_tokens):
-            self.assertEqual(token.type, expected.type)
-            self.assertEqual(token.value, expected.value)
+        self.assert_tokens_equal(expected_tokens, tokens)
+
+    def test_tokenize_right(self):
+        sql = "RIGHT([Column], 4)"
+        self.tokenizer = Tokenizer(sql)
+        tokens = self.tokenizer.parse()
+        self.assert_tokens_equal([
+            Token(Token.WORD, 'RIGHT'),
+            Token(Token.SYMBOL, '('),
+            Token(Token.QUOTED_IDENTIFIER, '[Column]'),
+            Token(Token.SYMBOL, ','),
+            Token(Token.WHITESPACE, ' '),
+            Token(Token.NUMBER, '4'),
+            Token(Token.SYMBOL, ')')
+        ], tokens)
+
+    def assert_tokens_equal(self, expected, found):
+        self.assertEqual(len(expected), len(found), f"Incorrect number of tokens. Expected {expected}, found {found}")
+
+        for expected_token, found_token in zip(expected, found):
+            self.assertEqual(expected_token.type, found_token.type)
+            self.assertEqual(expected_token.value, found_token.value)

@@ -1,0 +1,51 @@
+from parsing.expressions.clause import Clause
+from parsing.expressions.scalar_expression import IdentifierExpression
+from parsing.expressions.select_expression import SelectExpression
+from parsing.reader import Reader
+from parsing.tokenizer import Token
+
+class InsertColumnsExpression(Clause):
+
+    def __init__(self, opening_parenthesis, comma_separated_columns, closing_parenthesis):
+        super().__init__([opening_parenthesis] + comma_separated_columns + [closing_parenthesis])
+        self.columns = [
+            token for i, token in enumerate(comma_separated_columns) if i % 2 == 0
+        ]
+
+    @staticmethod
+    def consume(reader: Reader):
+        opening_parenthesis = reader.expect_symbol('(')
+        comma_separated_columns = []
+        while True:
+            comma_separated_columns.append(
+                reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+            )
+            if reader.curr_value_lower == ')':
+                return InsertColumnsExpression(
+                    opening_parenthesis,
+                    comma_separated_columns,
+                    reader.expect_symbol(')')
+                )
+            comma_separated_columns.append(reader.expect_symbol(','))
+                
+
+
+class InsertExpression(Clause):
+
+    def __init__(self):
+        super().__init__([])
+
+    @staticmethod
+    def consume(reader: Reader):
+        insert = reader.expect_word('insert')
+        into = reader.expect_word('into')
+        if reader.curr.type == Token.VARIABLE:
+            table = reader.expect(Token.VARIABLE)
+        else:
+            table = IdentifierExpression.consume(reader)
+        if reader.curr_value_lower == '(':
+            columns = InsertColumnsExpression.consume(reader)
+        if reader.curr_value_lower == 'select':
+            select = SelectExpression.consume(reader)
+        else:
+            raise ValueError(f"Unexpected token: '{reader.curr.value}'")

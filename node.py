@@ -8,6 +8,7 @@ class Node:
         self.name = name
         self.identity_col = identity_col
         self.columns = []
+        self.foreign_keys = []
         self.vals = {}
         self.references = {}
         self.back_references = []
@@ -16,6 +17,9 @@ class Node:
         if column not in self.references:
             self.references[column] = (node, primary_key)
             node.back_references.append((self, column))
+
+    def __repr__(self):
+        return f"Node({self.schema}.{self.name}, {self.id})"
 
 class Builder:
 
@@ -27,13 +31,15 @@ class Builder:
     def build_node(self, schema, table_name, id):
         node = self._build_node(schema, table_name, id)
         self._build_references(node)
+        self._build_back_references(node)
+        self.finalize_references(node)
         return node
 
     def _build_node(self, schema, table_name, id):
-        if (schema, table_name, id) in self.visited:
-            return self.visited[(schema, table_name, id)]
         node = Node(table_name, self.dataservice.get_identity(table_name, schema), id, schema)
+        self.visited[(schema, table_name, id)] = node
         node.columns = self.dataservice.get_columns(node.schema, node.name)
+        node.foreign_keys = self.dataservice.get_references(node.schema, node.name)
         self._get_values(node)
         if not node:
             raise ValueError(f"Table {table_name} not found in schema {schema}")
@@ -45,15 +51,29 @@ class Builder:
             node.vals[column] = value
 
     def _build_references(self, node: Node):
-        for pk_schema, pk_table, pk_column, fk_column, fk_name in self.dataservice.get_references(node.schema, node.name):
+        for pk_schema, pk_table, pk_column, fk_column, fk_name in node.foreign_keys:
             if fk_name not in self.foreign_keys:
                 continue
             if node.vals.get(fk_column) is None:
                 continue
-            ref_table = self._build_node(pk_schema, pk_table, node.vals[fk_column])
-            node.reference(fk_column, ref_table, pk_column)
-        for pk_column, fk_schema, fk_table, fk_column, fk_name in self.dataservice.get_back_references(node.name):
+            if (pk_schema, pk_table, node.vals[fk_column]) in self.visited:
+                continue
+            referenced_node = self._build_node(pk_schema, pk_table, node.vals[fk_column])
+            self._build_references(referenced_node)
+
+    def _build_back_references(self, node: Node):
+        for _, fk_schema, fk_table, _, fk_name in self.dataservice.get_back_references(node.name):
             for id in self.dataservice.get_referencing_rows(fk_schema, fk_table, fk_name, node.id):
-                ref_table = self.build_node(fk_schema, fk_table, id)
-                ref_table.reference(fk_column, node, node.identity_col)
-            
+                if (fk_schema, fk_table, id) in self.visited:
+                    continue
+                print(fk_schema, fk_table, id)
+                referencing_node = self._build_node(fk_schema, fk_table, id)
+                self._build_references(referencing_node)
+                self._build_back_references(referencing_node)
+        
+    def finalize_references(self, node: Node):
+        for node in self.visited.values():
+            for pk_schema, pk_table, _, fk_column, _ in node.foreign_keys:
+                if (pk_schema, pk_table, node.vals[fk_column]) in self.visited:
+                    referenced_node = self.visited[(pk_schema, pk_table, node.vals[fk_column])]
+                    node.reference(fk_column, referenced_node, node.vals[fk_column])

@@ -56,13 +56,14 @@ class Tokenizer:
                 tokens.append(self._consume_number())
             elif char == '@':
                 tokens.append(self._consume_variable())
-            elif char in '.><=+-':
+            elif char in '.><=+-!':
                 tokens.append(self._consume_symbol())
             elif char == ']':
                 print('\n'.join(map(repr, tokens)))
                 raise ValueError(f"Unmatched closing bracket at {self._get_line_and_column()}")
             else:
-                raise ValueError(f"Unexpected character: at {self._get_line_and_column()} {char}")
+                line, col = self._get_line_and_column()
+                raise ValueError(f"Unexpected character '{char}' at line {line + 1}, column {col + 1}")
         return tokens
 
     def _consume_whitespace(self) -> Token:
@@ -114,9 +115,11 @@ class Tokenizer:
     def _consume_variable(self) -> Token:
         ch = self._read()
         assert ch == '@'
+        if self._curr == '@':
+            ch += self._read()
         token = self._consume_word()
         token.type = Token.VARIABLE
-        token.value = '@' + token.value
+        token.value = ch + token.value
         return token
     
     def _consume_newline(self) -> Token:

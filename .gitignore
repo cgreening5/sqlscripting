@@ -1,3 +1,4 @@
 connection_string.json
 output/*
 **/*.pyc
+.vscode
