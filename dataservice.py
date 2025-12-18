@@ -4,6 +4,7 @@ class DataService:
         self.conn = conn
 
     def get_identity(self, table_name, schema='dbo'):
+        """Returns the identity column for the given table."""
         cursor = self.conn.cursor()
         cursor.execute(f"""
             SELECT COLUMN_NAME
@@ -16,6 +17,10 @@ class DataService:
         return cols[0]
     
     def get_references(self, schema, table_name):
+        """
+        Returns a list of foreign keys for the given table as a list of tuples:
+        (primary_key_schema, primary_key_table, primary_key_column, foreign_key_column, fk_name)
+        """
         cursor = self.conn.cursor()
         cursor.execute(f"""
             SELECT pk_schema.name, pk_tab.name, pk_col.name, fk_col.name, fk.name
@@ -32,6 +37,10 @@ class DataService:
         return cursor.fetchall()
         
     def get_back_references(self, table_name):
+        """
+        Returns a list of foreign keys referencing the given table as a list of tuples:
+        (primary_key_column, referencing_schema, referencing_table, referencing_column, fk_name)
+        """
         cursor = self.conn.cursor()
         cursor.execute(f"""
             SELECT pk_col.name AS primary_key_column, fk_schema.name AS referencing_schema, 
@@ -48,6 +57,7 @@ class DataService:
         return cursor.fetchall()
     
     def get_columns(self, schema, table_name):
+        """Returns a list of non-identity, non-computed columns for the given table."""
         cursor = self.conn.cursor()
         cursor.execute(f"""
             SELECT c.COLUMN_NAME
@@ -62,6 +72,7 @@ class DataService:
         return [row[0] for row in cursor.fetchall()]
 
     def get_values(self, table_name, identity_col, id, columns, schema='dbo'):
+        """Returns the values for the given columns in the specified row."""
         cursor = self.conn.cursor()
         cursor.execute(f"""
             SELECT [{'], ['.join(columns)}]
@@ -74,6 +85,7 @@ class DataService:
         return values
     
     def get_referencing_rows(self, schema, table_name, fk_name, fk_val):
+        """Returns a list of primary key values from the specified table that reference the given foreign key value."""
         cursor = self.conn.cursor()
         cursor.execute(f"""
             SELECT COL_NAME(fkc.parent_object_id, fkc.parent_column_id), COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id)
