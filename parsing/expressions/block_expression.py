@@ -1,3 +1,4 @@
+from parsing.cursor.cursor_expression import CursorExpression
 from parsing.expressions.clause import Clause
 from parsing.expressions.datatype import DataTypeClause
 from parsing.expressions.declare_expression import DeclareTableVariableExpression, DeclareVariableExpression, SetExpression
@@ -50,13 +51,22 @@ class BlockExpression(Clause):
     
     def _consume_declare(reader: Reader):
         declare = reader.expect_word('declare')
-        variable = reader.expect(Token.VARIABLE)
+        variable = reader.expect_any_of([Token.VARIABLE, Token.WORD])
 
         as_token = reader.consume_optional_word('as')
         if reader.curr.type == Token.WORD and reader.curr_value_lower == 'table':
             table = reader.expect_word('table')
             table_expression = TableDefinitionExpression.consume(reader)
             return DeclareTableVariableExpression(declare, variable, table, as_token, table_expression)
+        elif reader.curr_value_lower == 'cursor':
+            return CursorExpression(
+                declare,
+                variable,
+                as_token,
+                reader.expect_word('cursor'),
+                reader.expect_word('for'),
+                SelectExpression.consume(reader)
+            )
         else:
             datatype = DataTypeClause.consume(reader)
             return DeclareVariableExpression(declare, variable, as_token, datatype)
