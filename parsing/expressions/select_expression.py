@@ -37,6 +37,8 @@ class SelectExpression(Clause):
         self.top_n = top_n
         self.distinct = distinct
         self.projection = list(filter(lambda c: isinstance(c, ScalarExpression), comma_separated_projection))
+        self._from = _from
+        self.predicate = predicate
 
     @classmethod
     def consume(cls, reader: Reader):
@@ -91,25 +93,30 @@ class JoinExpression(Clause):
         join_type: TokenContext, 
         join: TokenContext, 
         table: IdentifierExpression | AliasedScalarExpression,
+        _as: TokenContext,
+        alias: AliasedScalarExpression,
         on: TokenContext, 
         condition: BooleanExpression
     ):
         super().__init__([join_type, join, table, on, condition])
         self.join_type =  join_type
         self.table = table
+        self.alias = alias
         self.condition = condition
 
-    def consume(cls, reader: Reader):
-        from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression
+    @staticmethod
+    def consume(reader: Reader):
+        from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression, AliasedScalarExpression
         join_type = reader.consume_optional_word('left') \
             or reader.consume_optional_word('inner')
         join = reader.expect_word('join')
         table = IdentifierExpression.consume(reader)
         if reader.curr_value_lower !='on':
             _as = reader.consume_optional_word('as')
-            table = AliasedScalarExpression(table, _as, reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER]))
-        _as = reader.consume_optional_word('asl')
-        alias = None
+            alias = AliasedScalarExpression(table, _as, reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER]))
+        else:
+            _as = None
+            alias = None
         if reader.curr_value_lower != 'on':
             alias = reader.curr_value_lower()
         on = reader.expect_word('on')
@@ -120,6 +127,8 @@ class FromExpression(Clause):
 
     def __init__(self, _from: TokenContext, table: IdentifierExpression, joins: list[JoinExpression]):
         super().__init__([_from, table, *joins])
+        self.table = table
+        self.joins = joins
 
     @classmethod
     def consume(cls, reader:Reader):
@@ -129,7 +138,7 @@ class FromExpression(Clause):
             raise ValueError(f"Invalid token: '{reader.curr.value}' ({reader.curr.type})")
         table = IdentifierExpression.consume(reader)
         # todo: gah
-        if reader.curr_value_lower not in ['where', 'order', 'group', 'join', 'inner', 'left', ')']:
+        if not reader.eof and reader.curr_value_lower not in ['where', 'order', 'group', 'join', 'inner', 'left', ')']:
             table = AliasedScalarExpression(
                 table, 
                 reader.consume_optional_word('as'),
@@ -137,5 +146,5 @@ class FromExpression(Clause):
             )
         joins: list[JoinExpression] = []
         while reader.curr_value_lower in ['inner', 'left', 'join']:
-            joins.append(JoinExpression)
-            return FromExpression(_from, table, joins)
+            joins.append(JoinExpression.consume(reader))
+        return FromExpression(_from, table, joins)
