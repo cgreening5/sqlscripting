@@ -1,8 +1,10 @@
 import unittest
 
-from parsing.expressions.scalar_expression import BooleanOperationExpression
+from parsing.expressions.scalar_expression import BooleanOperationExpression, InExpression
+from parsing.expressions.select_expression import SelectExpression
 from parsing.reader import Reader
 from parsing.tokenizer import Tokenizer
+from tests.utilities import parse
 
 class TestBooleanExpressionParsing(unittest.TestCase):
 
@@ -18,3 +20,9 @@ class TestBooleanExpressionParsing(unittest.TestCase):
         BooleanOperationExpression.consume(reader)
         assert reader.eof
         
+    def test_in(self):
+        """select Id from Table where Id in (1, 2, 3)"""
+        sql = "select Id from Table where Id in (1, 2, 3)"
+        clauses = parse(sql)
+        select: SelectExpression = clauses[0]
+        self.assertIsInstance(select.predicate, InExpression)

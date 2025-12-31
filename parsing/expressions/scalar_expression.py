@@ -272,6 +272,7 @@ class BooleanExpression(ScalarExpression):
                 left, 
                 reader.expect_word('or'), 
                 BooleanExpression._consume_maybe_and(reader))
+        return left
             
     @staticmethod
     def _consume_maybe_and(reader: Reader):
@@ -281,6 +282,7 @@ class BooleanExpression(ScalarExpression):
                 left, 
                 reader.expect_word('and'), 
                 BooleanExpression._consume(reader))
+        return left
 
     @staticmethod
     def _consume(reader: Reader):
@@ -291,8 +293,20 @@ class BooleanExpression(ScalarExpression):
             comparator = BooleanOperatorExpression.consume(reader)
             right = ScalarExpression.consume(reader)
             return EqualsExpression(left, comparator, right)
+        elif reader.curr_value_lower == 'in':
+            _in = reader.expect_word('in')
+            args = ArgumentsListExpression.consume(reader)
+            return InExpression(left, _in, args)
         else:
             return left
+        
+class InExpression(BooleanExpression):
+
+    def __init__(self, val: ScalarExpression, _in: TokenContext, args: ArgumentsListExpression):
+        super().__init__([val, _in, args])
+        self.val = val
+        self._in = _in
+        self.args = args
         
 class ExistsExpression(BooleanExpression):
 
