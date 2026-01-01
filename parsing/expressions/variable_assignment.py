@@ -18,7 +18,7 @@ class VariableAssignmentExpression(Clause):
     @staticmethod
     def consume(reader: Reader):
         from parsing.expressions.scalar_expression import ScalarExpression
-        VariableAssignmentExpression(
+        return VariableAssignmentExpression(
             reader.expect(Token.VARIABLE),
             reader.expect_symbol('='),
             ScalarExpression.consume(reader)
