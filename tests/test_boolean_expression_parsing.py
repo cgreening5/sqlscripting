@@ -1,6 +1,6 @@
 import unittest
 
-from parsing.expressions.scalar_expression import BooleanOperationExpression, InExpression
+from parsing.expressions.scalar_expression import BooleanExpression, BooleanOperationExpression, ComparisonExpression, InExpression
 from parsing.expressions.select_expression import SelectExpression
 from parsing.reader import Reader
 from parsing.tokenizer import Tokenizer
@@ -26,3 +26,10 @@ class TestBooleanExpressionParsing(unittest.TestCase):
         clauses = parse(sql)
         select: SelectExpression = clauses[0]
         self.assertIsInstance(select.predicate, InExpression)
+
+    def test_ne(self):
+        """select Id from Table where Id != 1"""
+        sql = "select Id from Table where Id != 1"
+        clauses = parse(sql)
+        predicate: ComparisonExpression = clauses[0].predicate
+        self.assertEqual(predicate.operation.operator.token.value, '!=')

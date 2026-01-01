@@ -289,10 +289,10 @@ class BooleanExpression(ScalarExpression):
         if reader.curr_value_lower == 'exists':
             return ExistsExpression.consume(reader)
         left = ScalarExpression.consume(reader)
-        if reader.curr_value_lower in ['=', '<', '>']:
+        if reader.curr_value_lower in ['!', '=', '<', '>']:
             comparator = BooleanOperatorExpression.consume(reader)
             right = ScalarExpression.consume(reader)
-            return EqualsExpression(left, comparator, right)
+            return ComparisonExpression(left, comparator, right)
         elif reader.curr_value_lower == 'in':
             _in = reader.expect_word('in')
             args = ArgumentsListExpression.consume(reader)
@@ -323,8 +323,9 @@ class ExistsExpression(BooleanExpression):
         
 class BooleanOperatorExpression(Clause):
 
-    def __init__(self, operator):
+    def __init__(self, operator: TokenContext):
         super().__init__([operator])
+        self.operator = operator
 
     @staticmethod
     def consume(reader: Reader):
@@ -344,7 +345,7 @@ class BooleanOperatorExpression(Clause):
         
 class BooleanOperationExpression(BooleanExpression):
 
-    def __init__(self, left, operator, right):
+    def __init__(self, left: ScalarExpression, operator: BooleanOperatorExpression, right: ScalarExpression):
         super().__init__([left, operator, right])
         self.left = left
         self.operator = operator
@@ -381,11 +382,12 @@ class CaseExpression(ScalarExpression):
                 end = reader.expect_word('end')
                 return CaseExpression(case, cases, end)
 
-class EqualsExpression(BooleanExpression):
+class ComparisonExpression(BooleanExpression):
 
-    def __init__(self, left, equals, right):
-        super().__init__([left, equals, right])
+    def __init__(self, left: ScalarExpression, operation: BooleanOperatorExpression, right: ScalarExpression):
+        super().__init__([left, operation, right])
         self.left = left
+        self.operation = operation
         self.right = right
     
 class SubstringExpression(ScalarExpression):
