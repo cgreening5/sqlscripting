@@ -91,8 +91,10 @@ class Reader:
         tokens = self._tokens[self._position : min(self._position + i, len(self._tokens))]
         return ''.join([token.value for token in tokens])
 
-    def expect_from_symbols(self, patterns):
+    def consume_symbol_from(self, patterns: list[str]):
         matches = [pattern for pattern in patterns if pattern == self.peek(len(pattern))]
+        if len(matches) == 0:
+            return None
         match = max(matches, key=lambda match: len(match))
         read = ''
         while len(read) < len(match):

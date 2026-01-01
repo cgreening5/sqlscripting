@@ -12,24 +12,37 @@ class ScalarExpression(Clause):
     def __init__(self, tokens: list[TokenContext|Clause]):
         super().__init__(list(filter(lambda t: t, tokens)))
 
-    @classmethod
-    def consume(cls, reader: Reader) -> Self:
+    @staticmethod
+    def consume(reader: Reader):
+        left = ScalarExpression.consume_addition_or_subtraction(reader)
+        while True:
+            boolean_operator = reader.consume_symbol_from([
+                '=', '!=', '<', '>',
+                '<>', '<=', '>='
+            ])
+            if boolean_operator:
+                left = BooleanOperationExpression(
+                    left,
+                    boolean_operator,
+                    ScalarExpression.consume(reader)
+                )
+            else:
+                break
+        return left
+
+    @staticmethod
+    def consume_addition_or_subtraction(reader: Reader) -> Self:
         left = ScalarExpression._consume(reader)
-        if reader.curr_value_lower in ['+', '-']:
-            return ScalarExpression.consume_plus_or_minus_operator(reader, left)
-        else:
-            return left
-            
-    @classmethod 
-    def consume_plus_or_minus_operator(cls, reader: Reader, left: Self) -> Self:
-        while reader.curr_value_lower in ['-', '+']:
-            operator = reader.expect_symbol(reader.curr_value_lower)
-            right = ScalarExpression._consume(reader)
-            return AdditionSubtractionExpression(left, operator, right)    
+        while reader.curr_value_lower in ['+', '-']:
+            left =  AdditionSubtractionExpression(
+                left,
+                reader.expect_symbol(reader.curr_value_lower),
+                ScalarExpression._consume(reader)
+            )
+        return left
         
     @classmethod
     def _consume(cls, reader: Reader) -> Self:
-        
         if reader.curr.type == Token.QUOTED_IDENTIFIER:
             return IdentifierExpression.consume(reader)
         elif reader.curr.type == Token.WORD:
@@ -60,9 +73,23 @@ class ScalarExpression(Clause):
         elif reader.curr.type == Token.SYMBOL:
             if reader.curr_value_lower == '(':
                 return ParentheticalExpression.consume(reader)
+            if reader.curr_value_lower == '-':
+                return NegativeExpression.consume(reader)
         elif reader.curr.type == Token.VARIABLE:
             return VariableExpression.consume(reader)
         raise ValueError(f'Invalid token type {reader.curr.type} ({reader.curr_value_lower})')
+
+class NegativeExpression(ScalarExpression):
+
+    def __init__(self, minus, expression):
+        super().__init__([minus, expression])
+
+    @staticmethod
+    def consume(reader: Reader):
+        return NegativeExpression(
+            reader.expect_symbol('-'),
+            ScalarExpression.consume(reader),
+        )
 
 class GetDateExpression(ScalarExpression):
 
@@ -95,6 +122,14 @@ class ParentheticalExpression(ScalarExpression):
         return ParentheticalExpression(
             opening_parenthesis,
             expression,
+            reader.expect_symbol(')')
+        )
+    
+    @staticmethod
+    def consume_boolean(reader: Reader):
+        return ParentheticalExpression(
+            reader.expect_symbol('('),
+            BooleanExpression.consume(reader),
             reader.expect_symbol(')')
         )
 
@@ -352,7 +387,7 @@ class BooleanOperatorExpression(Clause):
             '<=',
             '!=',
         ]
-        match = reader.expect_from_symbols(patterns)
+        match = reader.consume_symbol_from(patterns)
         if match:
             return BooleanOperatorExpression(match)
         

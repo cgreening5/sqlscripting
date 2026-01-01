@@ -1,4 +1,4 @@
-from parsing.cursor.cursor_expression import CursorExpression
+from parsing.cursor.cursor_expression import CursorExpression, FetchExpression, OpenExpression
 from parsing.expressions.clause import Clause
 from parsing.expressions.datatype import DataTypeClause
 from parsing.expressions.declare_expression import DeclareTableVariableExpression, DeclareVariableExpression, SetExpression
@@ -41,6 +41,10 @@ class BlockExpression(Clause):
                     clauses.append(SetExpression.consume(reader))
                 elif value == 'while':
                     clauses.append(WhileExpression.consume(reader))
+                elif value == 'open':
+                    clauses.append(OpenExpression.consume(reader))
+                elif value == 'fetch':
+                    clauses.append(FetchExpression.consume(reader))
                 else:
                     raise ValueError(f"Unexpected token '{reader.curr.__repr__()}'")
             else:

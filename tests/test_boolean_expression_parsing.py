@@ -39,5 +39,6 @@ class TestBooleanExpressionParsing(unittest.TestCase):
         """select Id from Table where Id != 1"""
         sql = "select Id from Table where Id != 1"
         clauses = parse(sql)
-        predicate: ComparisonExpression = clauses[0].predicate
-        self.assertEqual(predicate.operation.operator.token.value, '!=')
+        self.assertIsInstance(clauses[0].predicate, BooleanOperationExpression)
+        predicate: BooleanOperationExpression = clauses[0].predicate
+        self.assertEqual(predicate.operator.token.value, '!=')
