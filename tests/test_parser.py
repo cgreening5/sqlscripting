@@ -17,17 +17,17 @@ class TestParser(unittest.TestCase):
     def test_use_clause(self):
         
         self.parser = Parser(self.tokenize("USE my_database"))
-        parsed_clauses = self.parser.parse()
+        parsed_clauses = self.parser.parse().expressions
 
         self.assertEqual(len(parsed_clauses), 1)
         use_clause = parsed_clauses[0]
         self.assertIsInstance(use_clause, UseExpression)
-        self.assertEqual(use_clause.database.token.value, 'my_database')
+        self.assertEqual(use_clause.database.tokens[-1].token.value, 'my_database')
 
     def test_declare_clause(self):
         """DECLARE @var INT"""
         self.parser = Parser(self.tokenize("DECLARE @var INT"))
-        parsed_clauses = self.parser.parse()
+        parsed_clauses = self.parser.parse().expressions
 
         self.assertEqual(len(parsed_clauses), 1)
         declare_clause = parsed_clauses[0]
@@ -38,7 +38,7 @@ class TestParser(unittest.TestCase):
     def test_declare_clause_with_as(self):
         """DECLARE @var AS INT"""
         self.parser = Parser(self.tokenize("DECLARE @var AS INT"))
-        parsed_clauses = self.parser.parse()
+        parsed_clauses = self.parser.parse().expressions
         self.assertEqual(len(parsed_clauses), 1)
         declare_clause = parsed_clauses[0]  
         self.assertIsInstance(declare_clause, DeclareVariableExpression)
@@ -49,7 +49,7 @@ class TestParser(unittest.TestCase):
     def test_declare_table_clause(self):
         """DECLARE @var AS TABLE (id INT)"""
         self.parser = Parser(self.tokenize("DECLARE @var AS TABLE (id INT)"))
-        parsed_clauses = self.parser.parse()
+        parsed_clauses = self.parser.parse().expressions
 
         self.assertEqual(len(parsed_clauses), 1)
         declare_clause = parsed_clauses[0]
@@ -64,7 +64,7 @@ class TestParser(unittest.TestCase):
     def test_declare_table_with_text_datatype(self):
         """DECLARE @var AS TABLE (description NVARCHAR(100))"""
         self.parser = Parser(self.tokenize("DECLARE @var AS TABLE (description NVARCHAR(100))"))
-        parsed_clauses = self.parser.parse()
+        parsed_clauses = self.parser.parse().expressions
 
         self.assertEqual(len(parsed_clauses), 1)
         declare_clause = parsed_clauses[0]

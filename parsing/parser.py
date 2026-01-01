@@ -66,7 +66,7 @@ class Parser():
         else:
             raise ValueError(f"{self.reader.print()}\n{err}") from err
         
-    def parse(self) -> list[Clause]:
+    def parse(self) -> BlockExpression:
         try:
             return BlockExpression.consume(self.reader)
         except Exception as e:

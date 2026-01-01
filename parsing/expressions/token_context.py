@@ -10,3 +10,9 @@ class TokenContext:
     
     def __str__(self):
         return f"{self.token}{self.whitespace}"
+    
+    def uppercase(self):
+        if self.token.type in [Token.VARIABLE, Token.COMMENT, Token.QUOTED_IDENTIFIER]:
+            return self.token.value + ''.join(token.value for token in self.whitespace)
+        else:
+            return self.token.value.upper() + ''.join(token.value for token in self.whitespace)

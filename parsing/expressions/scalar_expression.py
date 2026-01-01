@@ -1,7 +1,7 @@
 from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.declare_expression import VariableExpression
 from parsing.tokenizer import Token
-from typing import Self
+from typing import Self, override
 from parsing.expressions.clause import Clause
 from parsing.expressions.datatype import DataTypeClause
 from parsing.expressions.token_context import TokenContext
@@ -234,6 +234,9 @@ class IdentifierExpression(ScalarExpression):
             identifiers.append(reader.expect(reader.curr.type))
         return IdentifierExpression(identifiers)
             
+    @override
+    def uppercase(self):
+        return ''.join(str(token) for token in self.tokens)
 
 class ReplaceExpression(ScalarExpression):
     def __init__(self, replace: TokenContext, arguments: ArgumentsListExpression):

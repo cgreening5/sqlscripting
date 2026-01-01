@@ -8,3 +8,10 @@ class Clause:
     
     def __str__(self):
         return ''.join(map(str, filter(lambda t: t is not None, self.tokens)))
+    
+    def uppercase(self) -> str:
+        try:
+            return ''.join(token.uppercase() for token in self.tokens if token != None)
+        except Exception as e:
+            print(self.__class__.__name__, 'exception.')
+            raise e

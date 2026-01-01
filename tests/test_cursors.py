@@ -9,5 +9,5 @@ class TestCursors(unittest.TestCase):
 
     def test_parse_cursor(self):
         sql = "declare testcursor cursor for select Id from table where Id = 1"
-        parsed = Parser(Tokenizer(sql).parse()).parse()
+        parsed = Parser(Tokenizer(sql).parse()).parse().expressions
         self.assertIsInstance(parsed[0], CursorExpression)

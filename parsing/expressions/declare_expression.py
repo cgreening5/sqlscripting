@@ -38,7 +38,7 @@ class DeclareTableVariableExpression(Clause):
         table: TokenContext, 
         table_definition: DefineTableExpression
     ):
-        super().__init__([declare, name, as_token, table] + table_definition.tokens)
+        super().__init__([declare, name, as_token, table, table_definition])
         self.name = name
         self.table_definition = table_definition
 

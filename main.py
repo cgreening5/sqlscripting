@@ -2,6 +2,7 @@ import argparse
 import json
 from dataservice import DataService
 from node import Builder
+from parsing.expressions.clause import Clause
 from parsing.parser import Parser
 from parsing.tokenizer import Tokenizer
 from scripter import DeleteScripter, InsertScripter
@@ -48,7 +49,7 @@ def main():
     if args.action == 'uppercase':
         tokens = Tokenizer(open(args.file, 'r').read()).parse()
         output = Parser(tokens).parse()
-        print(''.join(map(str, output)))
+        print(output.uppercase())
     elif args.action == 'query':
         conn = get_sql_connection(args.db_name)
         from queries import Queryer

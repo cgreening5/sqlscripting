@@ -8,7 +8,7 @@ from parsing.tokenizer import Token
 class FetchExpression(Clause):
 
     def __init__(self, fetch: TokenContext, _next: TokenContext, _from: TokenContext, cursor: TokenContext, into: TokenContext, variables: list[TokenContext]):
-        super().__init__([fetch, next, _from, cursor, into] + variables)
+        super().__init__([fetch, _next, _from, cursor, into, *variables])
         self.cursor = cursor
         self.next = _next
         self.variables = variables
@@ -23,10 +23,10 @@ class FetchExpression(Clause):
             'first',
             'last',
         ]:
-            next = reader.expect_word()
+            _next = reader.expect_word()
             _from = reader.expect_word('from')
         else:
-            next = None
+            _next = None
             _from = reader.consume_optional_word('from')
         cursor = reader.expect_any_of([Token.VARIABLE, Token.WORD])
         into = reader.expect_word('into')
@@ -37,7 +37,7 @@ class FetchExpression(Clause):
                 variables.append(reader.expect_symbol(','))
             else:
                 break
-        return FetchExpression(fetch, next, _from, cursor, into, variables)
+        return FetchExpression(fetch, _next, _from, cursor, into, variables)
 
 class OpenExpression(Clause):
 

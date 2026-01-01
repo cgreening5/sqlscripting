@@ -15,6 +15,8 @@ class BeginTransactionExpression(Clause):
         tran = reader.expect_word()
         if not reader.eof and reader.curr.type == Token.VARIABLE:
             tranname = reader.expect(Token.VARIABLE)
+        else:
+            tranname = None
         return BeginTransactionExpression(
             begin,
             tran, 

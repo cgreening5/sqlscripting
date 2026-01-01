@@ -78,7 +78,7 @@ class TableDefinitionExpression(Clause):
     ):
         super().__init__([
             opening_parenthesis, 
-            comma_separated_column_definitions, 
+            *comma_separated_column_definitions, 
             closing_parenthesis
         ])
         self.columns = list(filter(lambda c: isinstance(c, ColumnDefinitionExpression), comma_separated_column_definitions))

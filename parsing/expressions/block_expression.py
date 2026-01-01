@@ -12,6 +12,7 @@ from parsing.expressions.use_expression import UseExpression
 from parsing.expressions.while_expression import WhileExpression
 from parsing.reader import Reader
 from parsing.tokenizer import Token
+from parsing.update import UpdateExpression
 
 class BlockExpression(Clause):
 
@@ -30,7 +31,7 @@ class BlockExpression(Clause):
                 clauses.append(BlockExpression.consume_top_level_expression(reader))
             if reader.curr_value_lower == ';':
                 clauses.append(reader.expect_symbol(';'))
-        return clauses
+        return BlockExpression(clauses)
     
     @staticmethod
     def consume_top_level_expression(reader: Reader):
@@ -67,6 +68,8 @@ class BlockExpression(Clause):
                 return OpenExpression.consume(reader)
             elif value == 'fetch':
                 return FetchExpression.consume(reader)
+            elif value == 'update':
+                return UpdateExpression.consume(reader)
             elif value == 'if':
                 return IfExpression.consume(reader)
             else:
