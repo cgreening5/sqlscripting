@@ -7,14 +7,27 @@ from parsing.tokenizer import Token
 
 class FetchExpression(Clause):
 
-    def __init__(self, fetch: TokenContext, cursor: TokenContext, into: TokenContext, variables: list[TokenContext]):
-        super().__init__([fetch, cursor, into] + variables)
+    def __init__(self, fetch: TokenContext, _next: TokenContext, _from: TokenContext, cursor: TokenContext, into: TokenContext, variables: list[TokenContext]):
+        super().__init__([fetch, next, _from, cursor, into] + variables)
         self.cursor = cursor
+        self.next = _next
         self.variables = variables
 
     @staticmethod
     def consume(reader: Reader):
         fetch = reader.expect_word('fetch')
+        # todo: there are a couple more harder ones
+        if reader.curr_value_lower in [
+            'next',
+            'prior',
+            'first',
+            'last',
+        ]:
+            next = reader.expect_word()
+            _from = reader.expect_word('from')
+        else:
+            next = None
+            _from = reader.consume_optional_word('from')
         cursor = reader.expect_any_of([Token.VARIABLE, Token.WORD])
         into = reader.expect_word('into')
         variables = []
@@ -24,7 +37,7 @@ class FetchExpression(Clause):
                 variables.append(reader.expect_symbol(','))
             else:
                 break
-        return FetchExpression(fetch, cursor, into, variables)
+        return FetchExpression(fetch, next, _from, cursor, into, variables)
 
 class OpenExpression(Clause):
 
@@ -58,3 +71,27 @@ class CursorExpression(Clause):
             _for,
             select,
         ])
+
+class CloseCursorExpression(Clause):
+
+    def __init__(self, close, cursor):
+        super().__init__([close, cursor])
+        self.cursor = cursor
+
+    @staticmethod
+    def consume(reader: Reader):
+        close = reader.expect_word('close')
+        cursor = reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+        return CloseCursorExpression(close, cursor)
+
+class DeallocateCursorExpression(Clause):
+
+    def __init__(self, close, cursor):
+        super().__init__([close, cursor])
+        self.cursor = cursor
+
+    @staticmethod
+    def consume(reader: Reader):
+        close = reader.expect_word('deallocate')
+        cursor = reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+        return DeallocateCursorExpression(close, cursor)

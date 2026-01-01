@@ -7,6 +7,7 @@ from parsing.expressions.datatype import DataTypeClause
 from parsing.expressions.token_context import TokenContext
 from parsing.reader import Reader
 
+
 class ScalarExpression(Clause):
 
     def __init__(self, tokens: list[TokenContext|Clause]):
@@ -15,7 +16,14 @@ class ScalarExpression(Clause):
     @staticmethod
     def consume(reader: Reader):
         left = ScalarExpression.consume_addition_or_subtraction(reader)
-        while True:
+        if reader.curr_value_lower == 'is':
+            left =  IsExpression(
+                left,
+                reader.expect_word('is'),
+                reader.consume_optional_word('not'),
+                ScalarExpression.consume(reader)
+            )
+        else: 
             boolean_operator = reader.consume_symbol_from([
                 '=', '!=', '<', '>',
                 '<>', '<=', '>='
@@ -26,8 +34,9 @@ class ScalarExpression(Clause):
                     boolean_operator,
                     ScalarExpression.consume(reader)
                 )
-            else:
-                break
+        assert isinstance(left, ScalarExpression) \
+            or isinstance(left, VariableExpression), \
+                f'Invalid expression: {left.__class__.__name__}'
         return left
 
     @staticmethod
@@ -66,6 +75,10 @@ class ScalarExpression(Clause):
                 return YearExpression.consume(reader)
             elif reader.curr_value_lower == 'getdate':
                 return GetDateExpression.consume(reader)
+            elif reader.curr_value_lower == 'scope_identity':
+                return ScopeIdentityExpression.consume(reader)
+            elif reader.curr_value_lower == 'abs':
+                return AbsExpression.consume(reader)
             else:
                 return IdentifierExpression.consume(reader)
         elif reader.curr.type == Token.NUMBER:
@@ -89,6 +102,19 @@ class NegativeExpression(ScalarExpression):
         return NegativeExpression(
             reader.expect_symbol('-'),
             ScalarExpression.consume(reader),
+        )
+    
+class ScopeIdentityExpression(ScalarExpression):
+
+    def __init__(self, scope_identity, opening_parentheses, closing_parentheses):
+        super().__init__([scope_identity, opening_parentheses, closing_parentheses])
+
+    @staticmethod
+    def consume(reader: Reader):
+        return ScopeIdentityExpression(
+            reader.expect_word('scope_identity'),
+            reader.expect_symbol('('),
+            reader.expect_symbol(')')
         )
 
 class GetDateExpression(ScalarExpression):
@@ -342,7 +368,17 @@ class BooleanExpression(ScalarExpression):
             return InExpression(left, _not, _in, expression)
         else:
             return left
-        
+
+
+class IsExpression(BooleanExpression):
+
+    def __init__(self, left, _is, _not, right):
+        super().__init__([left, _is, _not, right])
+        self.left = left
+        self.right = right
+        self._not = _not
+
+
 class InExpression(BooleanExpression):
 
     def __init__(
@@ -459,6 +495,19 @@ class SubstringExpression(ScalarExpression):
             ScalarExpression.consume,
             ScalarExpression.consume,
             ScalarExpression.consume
+        )
+
+class AbsExpression(ScalarExpression):
+
+    def __init__(self, abs: TokenContext, args: ArgumentsListExpression):
+        super().__init__([abs, args])
+        [self.arg] = args.arguments
+    
+    @staticmethod
+    def consume(reader: Reader):
+        return AbsExpression(
+            reader.expect_word('abs'),
+            ArgumentsListExpression.consume(reader)
         )
 
 class AliasedScalarExpression(ScalarExpression):

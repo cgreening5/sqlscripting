@@ -7,4 +7,4 @@ class Clause:
         self.tokens = tokens
     
     def __str__(self):
-        return ''.join(map(str, filter(self.tokens)))
+        return ''.join(map(str, filter(lambda t: t is not None, self.tokens)))

@@ -1,6 +1,8 @@
+from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.clause import Clause
 from parsing.expressions.scalar_expression import IdentifierExpression
 from parsing.expressions.select_expression import SelectExpression
+from parsing.expressions.token_context import TokenContext
 from parsing.reader import Reader
 from parsing.tokenizer import Token
 
@@ -32,7 +34,16 @@ class InsertColumnsExpression(Clause):
 
 class InsertExpression(Clause):
 
-    def __init__(self):
+    def __init__(
+            self,
+            insert: TokenContext,
+            into: TokenContext,
+            table: TokenContext | IdentifierExpression,
+            columns: InsertColumnsExpression,
+            select: SelectExpression,
+            values: TokenContext,
+            arg_lists: list[ArgumentsListExpression],
+        ):
         super().__init__([])
 
     @staticmethod
@@ -47,5 +58,25 @@ class InsertExpression(Clause):
             columns = InsertColumnsExpression.consume(reader)
         if reader.curr_value_lower == 'select':
             select = SelectExpression.consume(reader)
-        else:
-            raise ValueError(f"Unexpected token: '{reader.curr.value}'")
+            values = None
+            arg_lists = None
+        elif reader.curr_value_lower == 'values':
+            select = None
+            values = reader.expect_word('values')
+            arg_lists = []
+            while True:
+                arg_lists.append(ArgumentsListExpression.consume(reader))
+                if reader.curr_value_lower == ',':
+                    arg_lists.append(reader.expect_symbol(','))
+                    arg_lists.append(ArgumentsListExpression.consume(reader))
+                else:
+                    break
+        return InsertExpression(
+            insert,
+            into,
+            table,
+            columns,
+            select,
+            values,
+            arg_lists
+        )
