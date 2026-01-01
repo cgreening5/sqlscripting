@@ -85,7 +85,7 @@ class BlockExpression(Clause):
         if reader.curr.type == Token.WORD and reader.curr_value_lower == 'table':
             table = reader.expect_word('table')
             table_expression = TableDefinitionExpression.consume(reader)
-            return DeclareTableVariableExpression(declare, variable, table, as_token, table_expression)
+            return DeclareTableVariableExpression(declare, variable, as_token, table, table_expression)
         elif reader.curr_value_lower == 'cursor':
             return CursorExpression(
                 declare,
