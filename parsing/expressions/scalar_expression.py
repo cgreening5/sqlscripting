@@ -293,19 +293,33 @@ class BooleanExpression(ScalarExpression):
             comparator = BooleanOperatorExpression.consume(reader)
             right = ScalarExpression.consume(reader)
             return ComparisonExpression(left, comparator, right)
-        elif reader.curr_value_lower == 'in':
+        elif reader.curr_value_lower in ('in', 'not'):
+            _not = reader.consume_optional_word('not')
             _in = reader.expect_word('in')
-            args = ArgumentsListExpression.consume(reader)
-            return InExpression(left, _in, args)
+            pos = reader._position
+            reader.expect_symbol('(')
+            if reader.curr_value_lower == 'select':
+                reader._position = pos
+                expression = ParentheticalExpression.consume(reader)
+            else:
+                reader._position = pos
+                expression = ArgumentsListExpression.consume(reader)
+            return InExpression(left, _not, _in, expression)
         else:
             return left
         
 class InExpression(BooleanExpression):
 
-    def __init__(self, val: ScalarExpression, _in: TokenContext, args: ArgumentsListExpression):
-        super().__init__([val, _in, args])
+    def __init__(
+            self, 
+            val: ScalarExpression, 
+            _not: TokenContext,
+            _in: TokenContext, 
+            args: ArgumentsListExpression
+        ):
+        super().__init__([val, _not, _in, args])
         self.val = val
-        self._in = _in
+        self._in = _not == None
         self.args = args
         
 class ExistsExpression(BooleanExpression):

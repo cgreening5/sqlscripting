@@ -26,6 +26,14 @@ class TestBooleanExpressionParsing(unittest.TestCase):
         clauses = parse(sql)
         select: SelectExpression = clauses[0]
         self.assertIsInstance(select.predicate, InExpression)
+        
+    def test_not_in(self):
+        """select Id from Table where Id not in (1, 2, 3)"""
+        sql = "select Id from Table where Id not in (1, 2, 3)"
+        clauses = parse(sql)
+        select: SelectExpression = clauses[0]
+        self.assertIsInstance(select.predicate, InExpression)
+        self.assertFalse(select.predicate._in)
 
     def test_ne(self):
         """select Id from Table where Id != 1"""
