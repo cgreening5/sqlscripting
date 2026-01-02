@@ -9,7 +9,7 @@ class TokenContext:
         self.whitespace = list(whitespace)
     
     def __str__(self):
-        return f"{self.token.value}{''.join(token.value for token in self.whitespace)}"
+        return f"{self.token.value}{''.join(str(token) for token in self.whitespace)}"
     
     def uppercase(self):
         if self.token.type in [Token.VARIABLE, Token.COMMENT, Token.QUOTED_IDENTIFIER]:

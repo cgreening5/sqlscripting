@@ -50,6 +50,13 @@ class ColumnDefinitionExpression(Clause):
         self.datatype = datatype
         self.attributes = attributes
 
+    def uppercase(self):
+        return ''.join([
+            str(self.name),
+            self.datatype.uppercase(),
+            *[attribute.uppercase() for attribute in self.attributes]
+        ])
+
     @staticmethod
     def consume(reader: Reader):
         name = reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
