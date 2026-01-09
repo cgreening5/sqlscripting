@@ -2,6 +2,7 @@ class Token:
 
     QUOTED_IDENTIFIER = 'QUOTED_IDENTIFIER'
     WORD = 'WORD'
+    KEYWORD = 'KEYWORD'
     WHITESPACE = 'WHITESPACE'
     NEWLINE = 'NEWLINE'
     COMMENT = 'COMMENT'
@@ -18,6 +19,9 @@ class Token:
     
     def __str__(self):
         return self.value
+    
+    def uppercase(self):
+        return self.value.upper()
 
 class Tokenizer:
 

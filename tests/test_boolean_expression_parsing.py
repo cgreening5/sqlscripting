@@ -23,22 +23,20 @@ class TestBooleanExpressionParsing(unittest.TestCase):
     def test_in(self):
         """select Id from Table where Id in (1, 2, 3)"""
         sql = "select Id from Table where Id in (1, 2, 3)"
-        clauses = parse(sql)
-        select: SelectExpression = clauses[0]
+        select: SelectExpression = parse(sql).expressions[0]
         self.assertIsInstance(select.predicate, InExpression)
         
     def test_not_in(self):
         """select Id from Table where Id not in (1, 2, 3)"""
         sql = "select Id from Table where Id not in (1, 2, 3)"
-        clauses = parse(sql)
-        select: SelectExpression = clauses[0]
+        select: SelectExpression = parse(sql).expressions[0]
         self.assertIsInstance(select.predicate, InExpression)
         self.assertFalse(select.predicate._in)
 
     def test_ne(self):
         """select Id from Table where Id != 1"""
         sql = "select Id from Table where Id != 1"
-        clauses = parse(sql)
-        self.assertIsInstance(clauses[0].predicate, BooleanOperationExpression)
-        predicate: BooleanOperationExpression = clauses[0].predicate
+        block = parse(sql)
+        self.assertIsInstance(block.expressions[0].predicate, BooleanOperationExpression)
+        predicate: BooleanOperationExpression = block.expressions[0].predicate
         self.assertEqual(predicate.operator.token.value, '!=')

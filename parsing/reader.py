@@ -56,6 +56,11 @@ class Reader:
     def expect_word(self, value:str=None) -> TokenContext:
         return self.expect(Token.WORD, value)
     
+    def expect_keyword(self, value:str=None) -> TokenContext:
+        word = self.expect_word(value)
+        word.token.type = Token.KEYWORD
+        return word
+    
     def expect_any_of(self, types: list[str]) -> TokenContext:
         assert self.curr.type in types, f'invalid token: {self.curr.value} ({self.curr.type})' \
             + f' expected any of {types}'

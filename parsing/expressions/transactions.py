@@ -10,9 +10,9 @@ class BeginTransactionExpression(Clause):
 
     @staticmethod
     def consume(reader: Reader):
-        begin = reader.expect_word('begin')
+        begin = reader.expect_keyword('begin')
         assert reader.curr_value_lower in ('tran', 'transaction')
-        tran = reader.expect_word()
+        tran = reader.expect_keyword()
         if not reader.eof and reader.curr.type == Token.VARIABLE:
             tranname = reader.expect(Token.VARIABLE)
         else:
@@ -33,7 +33,7 @@ class CommitTransactionExpression(Clause):
     def consume(reader: Reader):
         commit = reader.expect_word('commit')
         assert reader.curr_value_lower in ['tran', 'transaction']
-        tran = reader.expect_word()
+        tran = reader.expect_keyword()
         if not reader.eof and reader.curr.type == Token.VARIABLE:
             tranname = reader.expect(Token.VARIABLE)
         else: tranname = None

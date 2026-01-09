@@ -24,8 +24,8 @@ class ColumnUpdateExpression(Clause):
 
 class UpdateExpression(Clause):
 
-    def __init__(self, *tokens):
-        super().__init__(tokens)
+    def __init__(self, update, table, _set, updates, where, predicate):
+        super().__init__([update, table, _set, *updates, where, predicate])
 
     def consume(reader: Reader):
         update = reader.expect_word('update')
@@ -38,3 +38,11 @@ class UpdateExpression(Clause):
         predicate = None
         if where:
             predicate = BooleanExpression.consume(reader)
+        return UpdateExpression(
+            update,
+            table,
+            _set,
+            updates,
+            where,
+            predicate
+        )

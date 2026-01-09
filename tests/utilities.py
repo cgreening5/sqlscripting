@@ -5,4 +5,4 @@ from parsing.tokenizer import Tokenizer
 
 
 def parse(sql: str) -> BlockExpression:
-    return Parser(Tokenizer(sql).parse()).parse().expressions
+    return Parser(Tokenizer(sql).parse()).parse()

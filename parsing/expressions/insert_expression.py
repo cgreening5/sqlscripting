@@ -14,6 +14,11 @@ class InsertColumnsExpression(Clause):
             token for i, token in enumerate(comma_separated_columns) if i % 2 == 0
         ]
 
+    def uppercase(self):
+        return ''.join(
+            str(token) if token in self.columns else token.uppercase() for token in self.tokens
+        )
+
     @staticmethod
     def consume(reader: Reader):
         opening_parenthesis = reader.expect_symbol('(')
@@ -44,7 +49,15 @@ class InsertExpression(Clause):
             values: TokenContext,
             arg_lists: list[ArgumentsListExpression],
         ):
-        super().__init__([])
+        super().__init__([
+            insert,
+            into,
+            table,
+            columns,
+            select,
+            values,
+            *(arg_lists or [])
+        ])
 
     @staticmethod
     def consume(reader: Reader):

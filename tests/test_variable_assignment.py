@@ -7,11 +7,9 @@ class TestVariableAssignment(unittest.TestCase):
 
     def test_to_string(self):
         sql = "set @var = 1"
-        clauses = parse(sql)
-        self.assertEqual(sql, str(clauses[0]))
+        self.assertEqual(sql, str(parse(sql)))
 
     def test_uppercase(self):
         sql = "set @var = 1"
-        clauses = parse(sql)
-        self.assertEqual("SET @var = 1", clauses[0].uppercase())
+        self.assertEqual("SET @var = 1", parse(sql).uppercase())
 

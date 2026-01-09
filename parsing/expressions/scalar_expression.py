@@ -513,7 +513,7 @@ class AbsExpression(ScalarExpression):
             ArgumentsListExpression.consume(reader)
         )
 
-class AliasedScalarExpression(ScalarExpression):
+class AliasedIdentifierExpression(ScalarExpression):
 
     def __init__(self, expression, _as, alias):
         super().__init__([expression, _as, alias])
