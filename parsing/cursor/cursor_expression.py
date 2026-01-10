@@ -17,6 +17,11 @@ class FetchExpression(Clause):
         return ''.join([
             str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
         ])
+    
+    def lowercase(self):
+        return ''.join([
+            str(token) if token == self.cursor else token.lowercase() for token in self.tokens if token
+        ])
 
     @staticmethod
     def consume(reader: Reader):
@@ -47,6 +52,11 @@ class FetchExpression(Clause):
     def uppercase(self):
         return ''.join([
             str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
+        ])
+    
+    def lowercase(self):
+        return ''.join([
+            str(token) if token == self.cursor else token.lowercase() for token in self.tokens if token
         ])
 
 class OpenExpression(Clause):

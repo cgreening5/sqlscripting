@@ -40,6 +40,10 @@ def main():
     uppercase_parser.add_argument('file', help='Input SQL file')
     uppercase_parser.add_argument('-o', '--output', help='Output SQL file (optional)', default=None)
 
+    lowercase_parser = subparsers.add_parser('lowercase')
+    lowercase_parser.add_argument('file', help='Input SQL file')
+    lowercase_parser.add_argument('-o', '--output', help='Output SQL file (optional)', default=None)
+
     query_parser = subparsers.add_parser('query')
     query_parser.add_argument('db_name', help='Name of the database to connect to')
     query_parser.add_argument('-t', '--type', help='Type of objects to query. views, procedures, triggers)', choices=['views', 'procedures', 'triggers'])
@@ -67,7 +71,11 @@ def main():
             results = queryer.triggers(args.text)
         for _, definition in results:
             print(definition.replace('\r\n', '\n'))
-    else:
+    elif args.action == 'lowercase':
+        tokens = Tokenizer(open(args.file, 'r').read()).parse()
+        output = Parser(tokens).parse()
+        print(output.lowercase())
+    elif args.action in ['insert', 'delete']:
         conn = get_sql_connection(args.db_name)
         node = Builder(DataService(conn), args.foreign_keys).build_node(args.schema, args.table_name, args.id)
         lines = (InsertScripter if args.action == 'insert' else DeleteScripter)(node, transaction=args.transaction).script()

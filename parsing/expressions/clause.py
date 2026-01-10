@@ -15,3 +15,10 @@ class Clause:
         except Exception as e:
             print(self.__class__.__name__, 'exception.')
             raise e
+
+    def lowercase(self) -> str:
+        try:
+            return ''.join(token.lowercase() for token in self.tokens if token != None)
+        except Exception as e:
+            print(self.__class__.__name__, 'exception.')
+            raise e

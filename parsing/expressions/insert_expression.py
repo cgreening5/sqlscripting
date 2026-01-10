@@ -18,6 +18,11 @@ class InsertColumnsExpression(Clause):
         return ''.join(
             str(token) if token in self.columns else token.uppercase() for token in self.tokens
         )
+    
+    def lowercase(self):
+        return ''.join(
+            str(token) if token in self.columns else token.lowercase() for token in self.tokens
+        )
 
     @staticmethod
     def consume(reader: Reader):
