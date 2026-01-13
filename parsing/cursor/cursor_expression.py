@@ -13,16 +13,6 @@ class FetchExpression(Clause):
         self.next = _next
         self.variables = variables
 
-    def uppercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
-        ])
-    
-    def lowercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.lowercase() for token in self.tokens if token
-        ])
-
     @staticmethod
     def consume(reader: Reader):
         fetch = reader.expect_word('fetch')
@@ -38,7 +28,7 @@ class FetchExpression(Clause):
         else:
             _next = None
             _from = reader.consume_optional_word('from')
-        cursor = reader.expect_any_of([Token.VARIABLE, Token.WORD])
+        cursor = reader.expect_identifier()
         into = reader.expect_word('into')
         variables = []
         while True:
@@ -48,16 +38,6 @@ class FetchExpression(Clause):
             else:
                 break
         return FetchExpression(fetch, _next, _from, cursor, into, variables)
-
-    def uppercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
-        ])
-    
-    def lowercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.lowercase() for token in self.tokens if token
-        ])
 
 class OpenExpression(Clause):
 
@@ -69,13 +49,8 @@ class OpenExpression(Clause):
     def consume(reader: Reader) -> Self:
         return OpenExpression(
             reader.expect_word('open'),
-            reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+            reader.expect_identifier()
         )
-    
-    def uppercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
-        ])
 
 class CursorExpression(Clause):
 
@@ -98,11 +73,6 @@ class CursorExpression(Clause):
         ])
         self.cursor_name = cursor_name
 
-    def uppercase(self):
-        return ''.join([
-            str(token) if token == self.cursor_name else token.uppercase() for token in self.tokens if token
-        ])
-
 class CloseCursorExpression(Clause):
 
     def __init__(self, close, cursor):
@@ -112,13 +82,8 @@ class CloseCursorExpression(Clause):
     @staticmethod
     def consume(reader: Reader):
         close = reader.expect_keyword('close')
-        cursor = reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+        cursor = reader.expect_identifier()
         return CloseCursorExpression(close, cursor)
-    
-    def uppercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
-        ])
 
 class DeallocateCursorExpression(Clause):
 
@@ -129,10 +94,5 @@ class DeallocateCursorExpression(Clause):
     @staticmethod
     def consume(reader: Reader):
         close = reader.expect_word('deallocate')
-        cursor = reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+        cursor = reader.expect_identifier()
         return DeallocateCursorExpression(close, cursor)
-    
-    def uppercase(self):
-        return ''.join([
-            str(token) if token == self.cursor else token.uppercase() for token in self.tokens if token
-        ])

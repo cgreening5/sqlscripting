@@ -227,11 +227,17 @@ class IdentifierExpression(ScalarExpression):
     @classmethod
     def consume(cls, reader: Reader) -> Self:
         assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE]
-        identifiers = [reader.expect(reader.curr.type)]
-        while reader.curr_value_lower == '.':
-            identifiers.append(reader.expect_symbol('.'))
-            assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD]
-            identifiers.append(reader.expect(reader.curr.type))
+        identifiers = []
+        while True:
+            identitier = reader.expect_any_of([Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE])
+            if identitier.type == Token.WORD:
+                identitier.type = Token.IDENTIFIER
+            identifiers.append(identitier)
+            if reader.curr_value_lower == '.':
+                identifiers.append(reader.expect_symbol('.'))
+            else:
+                break
+            
         return IdentifierExpression(identifiers)
             
     @override
