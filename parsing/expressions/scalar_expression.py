@@ -10,12 +10,42 @@ from parsing.reader import Reader
 
 class ScalarExpression(Clause):
 
-    def __init__(self, tokens: list[TokenContext|Clause]):
+    def __init__(self, type: str, tokens: list[TokenContext|Clause]):
         super().__init__(list(filter(lambda t: t, tokens)))
+        self.type = type
+        self.has_name = False
+
+    def get_name(self) -> str:
+        raise NotImplementedError()
+    
 
     @staticmethod
     def consume(reader: Reader):
-        left = ScalarExpression.consume_addition_or_subtraction(reader)
+        return ScalarExpression.consume_possible_or(reader)
+    
+    @staticmethod
+    def consume_possible_or(reader: Reader):
+        left = ScalarExpression.consume_possible_and(reader)
+        while reader.curr_value_lower == 'or':
+            left = BooleanOperationExpression(
+                left, 
+                reader.expect_word('or'), 
+                ScalarExpression.consume_possible_and(reader))
+        return left
+    
+    @staticmethod
+    def consume_possible_and(reader: Reader):
+        left = ScalarExpression.consume_possible_comparison(reader)
+        while reader.curr_value_lower == 'and':
+            left = BooleanOperationExpression(
+                left, 
+                reader.expect_word('and'), 
+                ScalarExpression.consume_possible_comparison(reader))
+        return left
+
+    @staticmethod
+    def consume_possible_comparison(reader: Reader):
+        left = ScalarExpression.consume_possible_addition_or_subtraction(reader)
         if reader.curr_value_lower == 'is':
             left =  IsExpression(
                 left,
@@ -34,13 +64,30 @@ class ScalarExpression(Clause):
                     boolean_operator,
                     ScalarExpression.consume(reader)
                 )
+            elif reader.curr_value_lower in ['in', 'not']:
+                _not = reader.consume_optional_word('not')
+                _in = reader.expect_word('in')
+                pos = reader._position
+                reader.expect_symbol('(')
+                if reader.curr_value_lower == 'select':
+                    reader._position = pos
+                    expression = ParentheticalExpression.consume(reader)
+                else:
+                    reader._position = pos
+                    expression = ArgumentsListExpression.consume(reader)
+                left = InExpression(
+                    left,
+                    _not,
+                    _in,
+                    expression
+                )
         assert isinstance(left, ScalarExpression) \
             or isinstance(left, VariableExpression), \
                 f'Invalid expression: {left.__class__.__name__}'
         return left
 
     @staticmethod
-    def consume_addition_or_subtraction(reader: Reader) -> Self:
+    def consume_possible_addition_or_subtraction(reader: Reader) -> Self:
         left = ScalarExpression._consume(reader)
         while reader.curr_value_lower in ['+', '-']:
             left =  AdditionSubtractionExpression(
@@ -79,13 +126,15 @@ class ScalarExpression(Clause):
                 return ScopeIdentityExpression.consume(reader)
             elif reader.curr_value_lower == 'abs':
                 return AbsExpression.consume(reader)
+            elif reader.curr_value_lower == 'max':
+                return MaxExpression.consume(reader)
             else:
                 return IdentifierExpression.consume(reader)
         elif reader.curr.type == Token.NUMBER:
             return NumberLiteralExpression.consume(reader)
         elif reader.curr.type == Token.SYMBOL:
             if reader.curr_value_lower == '(':
-                return ParentheticalExpression.consume(reader)
+                return ParentheticalScalarExpression.consume(reader)
             if reader.curr_value_lower == '-':
                 return NegativeExpression.consume(reader)
         elif reader.curr.type == Token.VARIABLE:
@@ -95,7 +144,7 @@ class ScalarExpression(Clause):
 class NegativeExpression(ScalarExpression):
 
     def __init__(self, minus, expression):
-        super().__init__([minus, expression])
+        super().__init__('number', [minus, expression])
 
     @staticmethod
     def consume(reader: Reader):
@@ -107,7 +156,7 @@ class NegativeExpression(ScalarExpression):
 class ScopeIdentityExpression(ScalarExpression):
 
     def __init__(self, scope_identity, opening_parentheses, closing_parentheses):
-        super().__init__([scope_identity, opening_parentheses, closing_parentheses])
+        super().__init__('number', [scope_identity, opening_parentheses, closing_parentheses])
 
     @staticmethod
     def consume(reader: Reader):
@@ -120,7 +169,7 @@ class ScopeIdentityExpression(ScalarExpression):
 class GetDateExpression(ScalarExpression):
 
     def __init__(self, getdate, opening_parenthesis, closing_parenthesis):
-        super().__init__([getdate, opening_parenthesis, closing_parenthesis])
+        super().__init__('date', [getdate, opening_parenthesis, closing_parenthesis])
 
     @staticmethod
     def consume(reader: Reader):
@@ -130,7 +179,7 @@ class GetDateExpression(ScalarExpression):
             reader.expect_symbol(')')
         )
 
-class ParentheticalExpression(ScalarExpression):
+class ParentheticalExpression(Clause):
 
     def __init__(self, opening_parenthesis, expression, closing_parenthesis):
         super().__init__([opening_parenthesis, expression, closing_parenthesis])
@@ -142,7 +191,6 @@ class ParentheticalExpression(ScalarExpression):
         opening_parenthesis = reader.expect_symbol('(')
         if reader.curr_value_lower == 'select':
             expression = SelectExpression.consume(reader)
-            assert len(expression.projection) == 1
         else:
             expression = ScalarExpression.consume(reader)
         return ParentheticalExpression(
@@ -150,19 +198,32 @@ class ParentheticalExpression(ScalarExpression):
             expression,
             reader.expect_symbol(')')
         )
-    
+
+class ParentheticalScalarExpression(ScalarExpression):
+
+    def __init__(self, paranthetical_expression: ParentheticalExpression):
+        from parsing.expressions.select_expression import SelectExpression
+        if isinstance(paranthetical_expression.expression, SelectExpression):
+            assert len(paranthetical_expression.expression.produces_resultset) == 1, \
+                "Subquery in paranthetical scalar expression must return exactly one column"
+            type = paranthetical_expression.expression.projection[0].type
+        else:
+            assert isinstance(paranthetical_expression.expression, ScalarExpression), \
+                "Paranthetical expression must contain a scalar expression"
+            type = paranthetical_expression.expression.type
+        super().__init__(type, [paranthetical_expression])
+        self.paranthetical_expression = paranthetical_expression
+
     @staticmethod
-    def consume_boolean(reader: Reader):
-        return ParentheticalExpression(
-            reader.expect_symbol('('),
-            BooleanExpression.consume(reader),
-            reader.expect_symbol(')')
+    def consume(reader: Reader):
+        return ParentheticalScalarExpression(
+            ParentheticalExpression.consume(reader)
         )
 
 class YearExpression(ScalarExpression):
 
     def __init__(self, year: TokenContext, args: ArgumentsListExpression):
-        super().__init__([year, args])
+        super().__init__('number', [year, args])
         [self.year] = args.arguments
 
     @staticmethod
@@ -174,27 +235,26 @@ class YearExpression(ScalarExpression):
 class FormatExpression(ScalarExpression):
 
     def __init__(self, format: TokenContext, args: ArgumentsListExpression):
-        super().__init__([format, args])
-        assert len(args) == 3
-        assert isinstance(args[0], ScalarExpression)
-        self.args = args.arguments
+        super().__init__('text', [format, args])
+        [self.expression, self.format_string] = args.arguments
 
-    @classmethod
-    def consume(cls, reader) -> Self:
+    @staticmethod
+    def consume(reader) -> Self:
         format = reader.expect_word('format')
         args = ArgumentsListExpression.consume(reader)
+        return FormatExpression(format, args)
         
 class AdditionSubtractionExpression(ScalarExpression):
 
     def __init__(self, left: ScalarExpression, operator: TokenContext, right: ScalarExpression):
-        super().__init__([left, operator, right])
+        super().__init__('number', [left, operator, right])
         self.left = left
         self.operator = operator
         self.right = right
 
 class LenExpression(ScalarExpression):
     def __init__(self, len, open_paren: TokenContext, expression: ScalarExpression, closed_paren: TokenContext):
-        super().__init__([len, open_paren, expression, closed_paren])
+        super().__init__('number', [len, open_paren, expression, closed_paren])
 
     @classmethod
     def consume(cls, reader):
@@ -206,16 +266,16 @@ class LenExpression(ScalarExpression):
 
 class NumberLiteralExpression(ScalarExpression):
     def __init__(self, number):
-        super().__init__([number])
+        super().__init__('number', [number])
 
-    @classmethod
-    def consume(cls, reader):
+    @staticmethod
+    def consume(reader):
         return NumberLiteralExpression(reader.expect(Token.NUMBER))
 
 class IdentifierExpression(ScalarExpression):
     def __init__(self, period_separated_identifiers: list[TokenContext]):
         assert len(period_separated_identifiers) in (1, 3, 5)
-        super().__init__(period_separated_identifiers)
+        super().__init__(None, period_separated_identifiers)
         self.name = period_separated_identifiers[-1]
         self.table = None
         self.schema = None
@@ -224,27 +284,24 @@ class IdentifierExpression(ScalarExpression):
         if len(period_separated_identifiers) == 5:
             self.schema = period_separated_identifiers[4]
 
-    @classmethod
-    def consume(cls, reader: Reader) -> Self:
-        assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE]
+    @staticmethod
+    def consume(reader: Reader) -> Self:
+        assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE], \
+            f"Invalid token type for identifier: {reader.curr.type} ('{reader.curr.value}')"
         identifiers = [reader.expect(reader.curr.type)]
         while reader.curr_value_lower == '.':
             identifiers.append(reader.expect_symbol('.'))
             assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD]
             identifiers.append(reader.expect(reader.curr.type))
         return IdentifierExpression(identifiers)
-            
-    @override
-    def uppercase(self):
-        return ''.join(str(token) for token in self.tokens)
 
 class ReplaceExpression(ScalarExpression):
     def __init__(self, replace: TokenContext, arguments: ArgumentsListExpression):
-        super().__init__([replace, arguments])
+        super().__init__('text', [replace, arguments])
         [self.string, self.old_string, self.new_string] = arguments.arguments
 
-    @classmethod
-    def consume(cls, reader: Reader):
+    @staticmethod
+    def consume(reader: Reader):
         replace = reader.expect_word('replace')
         arguments = ArgumentsListExpression.consume(reader)
 
@@ -260,11 +317,11 @@ class RightExpression(ScalarExpression):
         number: TokenContext,
         closing_parenthesis: TokenContext
     ):
-        super().__init__([right, open_parenthesis, inner_expression, closing_parenthesis ])
+        super().__init__('text', [right, open_parenthesis, inner_expression, closing_parenthesis])
         self.inner_expression = inner_expression
 
-    @classmethod
-    def consume(cls, reader: Reader) -> Self:        
+    @staticmethod
+    def consume(reader: Reader) -> Self:        
         right = reader.expect_word('right')
         open_parenthesis = reader.expect_symbol('(')
         inner_expression = ScalarExpression.consume(reader)
@@ -283,7 +340,7 @@ class CastExpression(ScalarExpression):
         datatype: DataTypeClause,
         closing_parenthesis: TokenContext
     ):
-        super().__init__([cast, open_parenthesis, val, _as, datatype])
+        super().__init__(datatype.type, [cast, open_parenthesis, val, _as, datatype])
         self.datatype = datatype
         self.val = val
 
@@ -293,7 +350,7 @@ class CastExpression(ScalarExpression):
         open_parenthesis = reader.expect_symbol('(')
         scalar = ScalarExpression.consume(reader)
         _as = reader.expect_word('as')
-        datatype = reader.expect_word()
+        datatype = DataTypeClause.consume(reader)
         closing_parentheses = reader.expect_symbol(')')
         return CastExpression(cast, open_parenthesis, scalar, _as, datatype, closing_parentheses)
         
@@ -307,7 +364,7 @@ class ConcatExpression(ScalarExpression):
         closing_parenthesis: TokenContext
     ):
         self.expressions: list[ScalarExpression] = filter(lambda e: e.value != 'comma',  comma_separated_expressions)
-        super().__init__([concat, open_parenthesis, *comma_separated_expressions, closing_parenthesis])
+        super().__init__('text', [concat, open_parenthesis, *comma_separated_expressions, closing_parenthesis])
 
     @classmethod
     def consume(cls, reader: Reader) -> Self:
@@ -324,54 +381,8 @@ class ConcatExpression(ScalarExpression):
 
 class BooleanExpression(ScalarExpression):
 
-    @staticmethod
-    def consume(reader: Reader) -> Self:
-        return BooleanExpression._consume_maybe_or(reader)
-        
-    @staticmethod
-    def _consume_maybe_or(reader:Reader):
-        left = BooleanExpression._consume_maybe_and(reader)
-        while reader.curr_value_lower == 'or':
-            left = BooleanOperationExpression(
-                left, 
-                reader.expect_word('or'), 
-                BooleanExpression._consume_maybe_and(reader))
-        return left
-            
-    @staticmethod
-    def _consume_maybe_and(reader: Reader):
-        left = BooleanExpression._consume(reader)
-        while reader.curr_value_lower == 'and':
-            left = BooleanOperationExpression(
-                left, 
-                reader.expect_word('and'), 
-                BooleanExpression._consume(reader))
-        return left
-
-    @staticmethod
-    def _consume(reader: Reader):
-        if reader.curr_value_lower == 'exists':
-            return ExistsExpression.consume(reader)
-        left = ScalarExpression.consume(reader)
-        if reader.curr_value_lower in ['!', '=', '<', '>']:
-            comparator = BooleanOperatorExpression.consume(reader)
-            right = ScalarExpression.consume(reader)
-            return ComparisonExpression(left, comparator, right)
-        elif reader.curr_value_lower in ('in', 'not'):
-            _not = reader.consume_optional_word('not')
-            _in = reader.expect_word('in')
-            pos = reader._position
-            reader.expect_symbol('(')
-            if reader.curr_value_lower == 'select':
-                reader._position = pos
-                expression = ParentheticalExpression.consume(reader)
-            else:
-                reader._position = pos
-                expression = ArgumentsListExpression.consume(reader)
-            return InExpression(left, _not, _in, expression)
-        else:
-            return left
-
+    def __init__(self, tokens):
+        super().__init__('boolean', tokens)
 
 class IsExpression(BooleanExpression):
 
@@ -406,7 +417,7 @@ class ExistsExpression(BooleanExpression):
     def consume(reader):
         return ExistsExpression(
             reader.expect_word('exists'),
-            ParentheticalExpression.consume(reader)
+            ParentheticalScalarExpression.consume(reader)
         )
         
 class BooleanOperatorExpression(Clause):
@@ -449,7 +460,8 @@ class CaseWhenExpression(Clause):
     @classmethod
     def consume(cls, reader: Reader) -> Self:
             when = reader.expect_word('when')
-            predicate = BooleanExpression.consume(reader)
+            predicate = ScalarExpression.consume(reader)
+            assert predicate.type == 'boolean', "CASE WHEN predicate must be a boolean expression"
             then = reader.expect_word('then')
             result = ScalarExpression.consume(reader)
             return CaseWhenExpression(when, predicate, then, result)
@@ -457,7 +469,7 @@ class CaseWhenExpression(Clause):
 class CaseExpression(ScalarExpression):
 
     def __init__(self, case: TokenContext, cases: list[CaseWhenExpression], end: TokenContext):
-        super().__init__([case, *cases, end])
+        super().__init__(None, [case, *cases, end])
 
     @classmethod
     def consume(cls, reader: Reader) -> Self:
@@ -487,9 +499,7 @@ class SubstringExpression(ScalarExpression):
             expression: ScalarExpression,
             start: ScalarExpression,
             end: ScalarExpression=None):
-        super().__init__([substring, open_parentheses, expression, start])
-        if end:
-            super.__init__([substring, open_parentheses, expression, start, end])
+        super().__init__('text', [substring, open_parentheses, expression, start, end])
 
     @classmethod
     def consume(cls, reader):
@@ -503,7 +513,7 @@ class SubstringExpression(ScalarExpression):
 class AbsExpression(ScalarExpression):
 
     def __init__(self, abs: TokenContext, args: ArgumentsListExpression):
-        super().__init__([abs, args])
+        super().__init__('number', [abs, args])
         [self.arg] = args.arguments
     
     @staticmethod
@@ -512,10 +522,24 @@ class AbsExpression(ScalarExpression):
             reader.expect_word('abs'),
             ArgumentsListExpression.consume(reader)
         )
+    
+class MaxExpression(ScalarExpression):
 
-class AliasedIdentifierExpression(ScalarExpression):
+    def __init__(self, max: TokenContext, args: ArgumentsListExpression):
+        [self.arg] = args.arguments
+        assert isinstance(self.arg, ScalarExpression), "MaxExpression argument must be a ScalarExpression"
+        super().__init__(self.arg.type, [max, args])
 
-    def __init__(self, expression, _as, alias):
-        super().__init__([expression, _as, alias])
+    @staticmethod
+    def consume(reader: Reader):
+        return MaxExpression(
+            reader.expect_word('max'),
+            ArgumentsListExpression.consume(reader)
+        )
+
+class AliasedScalarIdentifierExpression(ScalarExpression):
+
+    def __init__(self, expression: ScalarExpression, _as: TokenContext, alias: TokenContext):
+        super().__init__(expression.type, [expression, _as, alias])
         self.expression = expression
         self.alias = alias

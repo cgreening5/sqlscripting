@@ -10,11 +10,15 @@ class TextDataTypeClause(Clause):
         super().__init__([datatype, open_paren, length, close_paren])
         self.datatype = datatype
         self.length = length
+        self.type = 'text'
 
 class DataTypeClause(Clause):
     def __init__(self, datatype: TokenContext):
         super().__init__([datatype])
         self.datatype = datatype
+        if datatype.token.value.lower() in ['int', 'bigint', 'smallint', 'tinyint', 'decimal', 'numeric', 'float', 'real', 'money', 'smallmoney']:
+            self.type = 'number'
+        else: self.type = None
 
     @staticmethod
     def consume(reader: Reader):

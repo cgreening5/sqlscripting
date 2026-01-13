@@ -74,6 +74,8 @@ class InsertExpression(Clause):
             table = IdentifierExpression.consume(reader)
         if reader.curr_value_lower == '(':
             columns = InsertColumnsExpression.consume(reader)
+        else:
+            columns = None
         if reader.curr_value_lower == 'select':
             select = SelectExpression.consume(reader)
             values = None
