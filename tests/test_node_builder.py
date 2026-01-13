@@ -92,7 +92,7 @@ class TestNodeBuilder(unittest.TestCase):
 
     def test_build_diamond_nodes(self):
         dataservice = MockDataService()
-        builder = Builder(dataservice, foreign_keys=[])
+        builder = Builder(dataservice)
         node = builder.build_node('dbo', 'Applications', 1)
         print('\n'.join(InsertScripter(node).script()))
 

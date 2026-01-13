@@ -23,10 +23,10 @@ class Node:
 
 class Builder:
 
-    def __init__(self, dataservice: DataService, foreign_keys):
+    def __init__(self, dataservice: DataService, reference_tables: list[str]=None):
         self.dataservice = dataservice
         self.visited = {}
-        self.foreign_keys = foreign_keys if foreign_keys else []
+        self.reference_tables = reference_tables or []
 
     def build_node(self, schema, table_name, id):
         node = self._build_node(schema, table_name, id)
@@ -52,7 +52,7 @@ class Builder:
 
     def _build_references(self, node: Node):
         for pk_schema, pk_table, pk_column, fk_column, fk_name in node.foreign_keys:
-            if fk_name not in self.foreign_keys:
+            if pk_table in self.reference_tables:
                 continue
             if node.vals.get(fk_column) is None:
                 continue

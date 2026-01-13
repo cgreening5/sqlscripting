@@ -2,7 +2,6 @@ import argparse
 import json
 from dataservice import DataService
 from node import Builder
-from parsing.expressions.clause import Clause
 from parsing.parser import Parser
 from parsing.tokenizer import Tokenizer
 from scripter import DeleteScripter, InsertScripter
@@ -25,7 +24,9 @@ def main():
     insert_parser.add_argument('db_name', help='Name of the database to connect to')
     insert_parser.add_argument('id', help='ID of the row to operate on', type=int)
     insert_parser.add_argument('--schema', default='dbo', help='Schema of the table (default: dbo)')
-    insert_parser.add_argument('-f', '--foreign-key', action='append', help='Copy row referenced by foreign key', dest='foreign_keys')
+    insert_parser.add_argument('-r', '--reference-table', action='append', 
+        help='Flag this table as reference data (should use original foreign key instead of copying)', 
+        dest='reference_tables')
     insert_parser.add_argument('-t', '--transaction', action='store_true', help='Wrap insert statements in a transaction')
 
     delete_parser = subparsers.add_parser('delete')    
@@ -33,7 +34,9 @@ def main():
     delete_parser.add_argument('db_name', help='Name of the database to connect to')
     delete_parser.add_argument('id', help='ID of the row to operate on', type=int)
     delete_parser.add_argument('--schema', default='dbo', help='Schema of the table (default: dbo)')
-    delete_parser.add_argument('-f', '--foreign-key', action='append', help='Copy row referenced by foreign key', dest='foreign_keys')
+    insert_parser.add_argument('-r', '--reference-table', action='append', 
+        help='Flag this table as reference data (should use original foreign key instead of copying)',
+        dest='reference_tables')
     delete_parser.add_argument('-t', '--transaction', action='store_true', help='Wrap delete statements in a transaction')
 
     uppercase_parser = subparsers.add_parser('uppercase')
@@ -50,10 +53,12 @@ def main():
     query_parser.add_argument('-q', '--query', help='Text to search for in object definitions', default=None)
 
     args = parser.parse_args()
+
     if args.action == 'uppercase':
         tokens = Tokenizer(open(args.file, 'r').read()).parse()
         output = Parser(tokens).parse()
         print(output.uppercase())
+
     elif args.action == 'query':
         conn = get_sql_connection(args.db_name)
         from queries import Queryer
@@ -71,13 +76,15 @@ def main():
             results = queryer.triggers(args.text)
         for _, definition in results:
             print(definition.replace('\r\n', '\n'))
+
     elif args.action == 'lowercase':
         tokens = Tokenizer(open(args.file, 'r').read()).parse()
         output = Parser(tokens).parse()
         print(output.lowercase())
+        
     elif args.action in ['insert', 'delete']:
         conn = get_sql_connection(args.db_name)
-        node = Builder(DataService(conn), args.foreign_keys).build_node(args.schema, args.table_name, args.id)
+        node = Builder(DataService(conn), args.reference_tables).build_node(args.schema, args.table_name, args.id)
         lines = (InsertScripter if args.action == 'insert' else DeleteScripter)(node, transaction=args.transaction).script()
         print('\n\n'.join(lines))
 
