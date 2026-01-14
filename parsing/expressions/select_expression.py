@@ -38,7 +38,8 @@ class SelectExpression(Clause):
         ])
         self.top_n = top_n
         self.distinct = distinct
-        self.projection: list[ScalarExpression | AliasedScalarIdentifierExpression | VariableAssignmentExpression] = list(filter(lambda c: not isinstance(c, TokenContext), comma_separated_projection))
+        self.projection: list[ScalarExpression | AliasedScalarIdentifierExpression | VariableAssignmentExpression] \
+            = list(filter(lambda c: not isinstance(c, TokenContext), comma_separated_projection))
         self._from = _from
         self.predicate = predicate
         self.produces_resultset = True
