@@ -47,15 +47,10 @@ class ColumnDefinitionExpression(Clause):
     def __init__(self, name: TokenContext, datatype: DataTypeClause, attributes: list[Clause]):
         super().__init__([name, datatype] + attributes)
         self.name = name
+        if name.type == Token.WORD:
+            name.type = Token.IDENTIFIER
         self.datatype = datatype
         self.attributes = attributes
-
-    def uppercase(self):
-        return ''.join([
-            str(self.name),
-            self.datatype.uppercase(),
-            *[attribute.uppercase() for attribute in self.attributes]
-        ])
 
     @staticmethod
     def consume(reader: Reader):

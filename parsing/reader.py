@@ -61,6 +61,12 @@ class Reader:
         word.token.type = Token.KEYWORD
         return word
     
+    def expect_identifier(self, value:str=None) -> TokenContext:
+        identifier = self.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER])
+        if identifier.token.type == Token.WORD:
+            identifier.token.type = Token.IDENTIFIER
+        return identifier
+    
     def expect_any_of(self, types: list[str]) -> TokenContext:
         assert self.curr.type in types, f'invalid token: {self.curr.value} ({self.curr.type})' \
             + f' expected any of {types}'

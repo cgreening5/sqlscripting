@@ -284,15 +284,20 @@ class IdentifierExpression(ScalarExpression):
         if len(period_separated_identifiers) == 5:
             self.schema = period_separated_identifiers[4]
 
-    @staticmethod
-    def consume(reader: Reader) -> Self:
-        assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE], \
-            f"Invalid token type for identifier: {reader.curr.type} ('{reader.curr.value}')"
-        identifiers = [reader.expect(reader.curr.type)]
-        while reader.curr_value_lower == '.':
-            identifiers.append(reader.expect_symbol('.'))
-            assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD]
-            identifiers.append(reader.expect(reader.curr.type))
+    @classmethod
+    def consume(cls, reader: Reader) -> Self:
+        assert reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE]
+        identifiers = []
+        while True:
+            identitier = reader.expect_any_of([Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE])
+            if identitier.type == Token.WORD:
+                identitier.type = Token.IDENTIFIER
+            identifiers.append(identitier)
+            if reader.curr_value_lower == '.':
+                identifiers.append(reader.expect_symbol('.'))
+            else:
+                break
+            
         return IdentifierExpression(identifiers)
 
 class ReplaceExpression(ScalarExpression):
