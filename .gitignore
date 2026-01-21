@@ -2,3 +2,4 @@ connection_string.json
 output/*
 **/*.pyc
 .vscode
+scratch.md

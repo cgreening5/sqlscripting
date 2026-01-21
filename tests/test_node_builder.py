@@ -1,9 +1,9 @@
 from typing import override
 import unittest
 
-from node import Builder
-from scripter import InsertScripter
-from dataservice import DataService
+from scripting.node import Builder
+from scripting.insert_scripter import InsertScripter
+from scripting.dataservice import DataService
 
 _schema = {
     "dbo": {

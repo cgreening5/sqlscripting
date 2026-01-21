@@ -1,4 +1,4 @@
-from dataservice import DataService
+from scripting.dataservice import DataService
 
 class Node:
 

@@ -1,11 +1,12 @@
 import argparse
 import json
 from analysis.tracer import Tracer
-from dataservice import DataService
-from node import Builder
+from scripting.dataservice import DataService
+from scripting.node import Builder
 from parsing.parser import Parser
 from parsing.tokenizer import Tokenizer
-from scripter import DeleteScripter, InsertScripter
+from scripting.delete_scripter import DeleteScripter
+from scripting.insert_scripter import InsertScripter
 
 def get_sql_connection(db_name): 
     import pyodbc
