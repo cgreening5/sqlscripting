@@ -1,10 +1,17 @@
+from analysis.dataservice import DataService
 from analysis.resultset import ResultSet
 from parsing.expressions.block_expression import BlockExpression
+from parsing.expressions.clause import Clause
+from parsing.expressions.scalar_expression import IdentifierExpression, ScalarExpression
+from parsing.expressions.select_expression import SelectExpression
+from parsing.parser import Parser
+from parsing.tokenizer import Tokenizer
 
 
 class Tracer:
-    def __init__(self, block: BlockExpression):
+    def __init__(self, block: BlockExpression, dataservice: DataService=None):
         self.block = block
+        self.dataservice = dataservice
 
     def trace(self, column: str = None, column_index: int = None, result_set: int = None):
         self.resultsets: list[ResultSet] = []
@@ -24,9 +31,22 @@ class Tracer:
         if column is not None:
             if column not in resultset.columns:
                 raise ValueError(f"Column '{column}' not found in result set.")
-            return resultset.columns[column]
+            return self._trace(resultset.columns[column])
         elif column_index is not None:
             if column_index < 0 or column_index >= len(resultset.columns_list):
                 raise ValueError(f"Column index {column_index} is out of range; there are {len(resultset.columns_list)} columns.")
-            return resultset.columns_list[column_index].uppercase()
+            return self._trace(resultset.columns_list[column_index])
         else: raise ValueError("Specify either a column name or a column index to trace.")
+
+    def _trace(self, column: Clause):
+        if isinstance(column, ScalarExpression):
+            return column.trace(self)
+        return column.uppercase()
+
+    def trace_identifier(self, column: IdentifierExpression):
+        if self.dataservice and self.dataservice.get_object_type(column.uppercase()) == 'V':
+            view = self.dataservice.get_view_definition(column)
+            block = Parser(Tokenizer(view).parse()).parse()
+            raise NotImplementedError('No support for tracing views')
+        else:
+            return column.uppercase()

@@ -8,6 +8,7 @@ class Token:
     NEWLINE = 'NEWLINE'
     COMMENT = 'COMMENT'
     VARIABLE = 'VARIABLE'
+    TEMP_TABLE = 'TEMP_TABLE'
     SYMBOL = 'SYMBOL'
     NUMBER = 'NUMBER'
 
@@ -61,6 +62,8 @@ class Tokenizer:
                 tokens.append(self._consume_number())
             elif char == '@':
                 tokens.append(self._consume_variable())
+            elif char == '#':
+                tokens.append(self._consume_temp_table())
             elif char in '.><=+-!':
                 tokens.append(self._consume_symbol())
             elif char == ']':
@@ -68,7 +71,7 @@ class Tokenizer:
                 raise ValueError(f"Unmatched closing bracket at {self._get_line_and_column()}")
             else:
                 line, col = self._get_line_and_column()
-                raise ValueError(f"Unexpected character '{char}' at line {line + 1}, column {col + 1}")
+                raise ValueError(f"Unexpected character '{char}' ({hex(ord(char))}) at line {line + 1}, column {col + 1}. {self.sql[:self._position + 1]}")
         return tokens
 
     def _consume_whitespace(self) -> Token:
@@ -124,6 +127,14 @@ class Tokenizer:
             ch += self._read()
         token = self._consume_word()
         token.type = Token.VARIABLE
+        token.value = ch + token.value
+        return token
+
+    def _consume_temp_table(self) -> Token:
+        ch = self._read()
+        assert ch == '#'
+        token = self._consume_word()
+        token.type = Token.TEMP_TABLE
         token.value = ch + token.value
         return token
     

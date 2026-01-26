@@ -1,6 +1,8 @@
 import argparse
 import json
 from analysis.tracer import Tracer
+import analysis.dataservice
+from db_conn import DbConn
 from scripting.dataservice import DataService
 from scripting.node import Builder
 from parsing.parser import Parser
@@ -8,7 +10,7 @@ from parsing.tokenizer import Tokenizer
 from scripting.delete_scripter import DeleteScripter
 from scripting.insert_scripter import InsertScripter
 
-def get_sql_connection(db_name): 
+def get_sql_connection(db_name) -> DbConn: 
     import pyodbc
     # Read connection string from file
     with open('connection_string.json', 'r') as f:
@@ -59,6 +61,10 @@ def main():
     trace_parser.add_argument('-c', '--column', help='Column name to trace', default=None)
     trace_parser.add_argument('-i', '--column-index', help='Column index to trace (0-based)', type=int, default=None)
     trace_parser.add_argument('-r', '--result-set', help='Result set number to trace (0-based)', type=int, default=None)
+    trace_parser.add_argument('-s', '--connection-string',
+        help='Connection string to trace views', 
+        default=None,
+        dest='connection_string')
 
     args = parser.parse_args()
 
@@ -97,10 +103,13 @@ def main():
         print('\n\n'.join(lines))
 
     elif args.action == 'trace':
+        dataservice = None
+        if args.connection_string:
+            dataservice = analysis.dataservice.DataService(get_sql_connection(args.connection_string))
         tokens = Tokenizer(open(args.file, 'r').read()).parse()
         parser = Parser(tokens)
         output = parser.parse()
-        print(Tracer(output).trace(args.column, args.column_index, args.result_set))
+        print(Tracer(output, dataservice).trace(args.column, args.column_index, args.result_set))
 
 if __name__ == "__main__":
     main()

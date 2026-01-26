@@ -25,6 +25,7 @@ class SelectExpression(Clause):
             where: TokenContext,
             predicate: BooleanExpression,
             groupby: GroupByExpression,
+            orderby: OrderByExpression,
         ):
         super().__init__([
             select, 
@@ -42,6 +43,8 @@ class SelectExpression(Clause):
             = list(filter(lambda c: not isinstance(c, TokenContext), comma_separated_projection))
         self._from = _from
         self.predicate = predicate
+        self.groupby = groupby
+        self.orderby = orderby
         self.produces_resultset = True
 
     @classmethod
@@ -56,7 +59,10 @@ class SelectExpression(Clause):
         distinct = reader.consume_optional_word('distinct')
         comma_separated_projection = []
         while True:
-            expression = ScalarExpression.consume(reader)
+            if reader.curr_value_lower == '*':
+                expression = reader.expect_symbol('*')
+            else:
+                expression = ScalarExpression.consume(reader)
             if reader.curr_value_lower == 'as':
                 expression = AliasedScalarIdentifierExpression(
                     expression,
@@ -69,7 +75,7 @@ class SelectExpression(Clause):
                     reader.expect_symbol('='),
                     ScalarExpression.consume(reader)
                 )
-            elif reader.curr_value_lower not in (',', 'from'):
+            elif reader.curr_value_lower not in (',', 'from', 'into'):
                 expression = AliasedScalarIdentifierExpression(
                     expression,
                     None,
@@ -80,6 +86,9 @@ class SelectExpression(Clause):
                 comma_separated_projection.append(reader.expect_symbol(','))
             else:
                 break
+        into = None
+        if reader.curr_value_lower == 'into':
+            into = IntoExpression.consume(reader)
         _from = FromExpression.consume(reader)
         where = None
         predicate = None
@@ -89,6 +98,9 @@ class SelectExpression(Clause):
         groupby = None
         if reader.curr_value_lower == 'group':
             groupby = GroupByExpression.consume(reader)
+        orderby = None
+        if reader.curr_value_lower == 'order':
+            orderby = OrderByExpression.consume(reader)
         return SelectExpression(
             select, 
             top, top_n, 
@@ -97,11 +109,13 @@ class SelectExpression(Clause):
             _from,
             where, 
             predicate,
-            groupby
+            groupby,
+            orderby
         )
     
     def get_resultset(self):
-        return ResultSet(self.projection)
+        predicate = self.predicate
+        return ResultSet(self.projection, self.predicate or True)
     
 class GroupByExpression(Clause):
 
@@ -127,6 +141,18 @@ class GroupByExpression(Clause):
             else:
                 break
         return GroupByExpression(group, by, columns)
+
+class ApplyExpression(Clause):
+
+    def __init__(
+        self,
+        apply_type,
+        apply,
+        expression: AliasedScalarIdentifierExpression
+    ):
+        super().__init__([apply_type, apply, expression])
+        self.apply_type = apply_type
+        self.expression = expression
   
 class JoinExpression(Clause):
 
@@ -146,9 +172,13 @@ class JoinExpression(Clause):
     @staticmethod
     def consume(reader: Reader):
         from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression, AliasedScalarIdentifierExpression
-        join_type = reader.consume_optional_word('left') \
-            or reader.consume_optional_word('inner')
-        join = reader.expect_word('join')
+        join_type = reader.consume_optional_words('left', 'outer') \
+            or reader.consume_optional_word('left') \
+            or reader.consume_optional_word('inner') \
+            or reader.consume_optional_word('outer') \
+            or reader.consume_optional_word('right')
+        assert reader.curr_value_lower in ('apply', 'join')
+        join = reader.expect_word()
         if reader.curr_value_lower == "(":
             table = ParentheticalExpression.consume(reader)
         else:
@@ -156,9 +186,12 @@ class JoinExpression(Clause):
         if reader.curr_value_lower !='on':
             _as = reader.consume_optional_word('as')
             table = AliasedTableExpression(table, _as, reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER]))
-        on = reader.expect_word('on')
-        condition = BooleanExpression.consume(reader)
-        return JoinExpression(join_type, join, table, on, condition)
+        if join.token.value.lower() == 'join':
+            on = reader.expect_word('on')
+            condition = BooleanExpression.consume(reader)
+            return JoinExpression(join_type, join, table, on, condition)
+        else:
+            return ApplyExpression(join_type, join, table)
 
 class FromExpression(Clause):
 
@@ -171,20 +204,33 @@ class FromExpression(Clause):
     def consume(cls, reader:Reader):
         from parsing.expressions.scalar_expression import IdentifierExpression, AliasedScalarIdentifierExpression
         _from = reader.expect_word('from')
-        if not reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE]:
+        if not reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]:
             raise ValueError(f"Invalid token: '{reader.curr.value}' ({reader.curr.type})")
         table = IdentifierExpression.consume(reader)
         # todo: gah
-        if not reader.eof and reader.curr_value_lower not in ['where', 'order', 'group', 'join', 'inner', 'left', ')', 'select']:
+        if not reader.eof and reader.curr_value_lower not in ['where', 'order', 'group', 'join', 'inner', 'left', ')', 'select', 'outer']:
             table = AliasedTableExpression(
                 table, 
                 reader.consume_optional_word('as'),
                 reader.expect_any_of([Token.QUOTED_IDENTIFIER, Token.WORD])
             )
         joins: list[JoinExpression] = []
-        while reader.curr_value_lower in ['inner', 'left', 'join']:
+        while reader.curr_value_lower in ['inner', 'left', 'join', 'outer']:
             joins.append(JoinExpression.consume(reader))
         return FromExpression(_from, table, joins)
+
+class IntoExpression(Clause):
+
+    def __init__(self, into, dest):
+        super().__init__([into, dest])
+        self.dest = dest
+
+    @staticmethod
+    def consume(reader: Reader) -> Self:
+        return IntoExpression(
+            reader.expect_word('into'),
+            reader.expect(Token.TEMP_TABLE)
+        )
     
 class AliasedTableExpression(Clause):
     def __init__(
@@ -196,3 +242,34 @@ class AliasedTableExpression(Clause):
         super().__init__([table, _as, alias])
         self.table = table
         self.alias = alias
+
+class OrderByColumnExpression(Clause):
+    def __init__(self, column, asc, comma):
+        super().__init__([column, asc, comma])
+        self.column = column
+        self.asc = asc
+
+class OrderByExpression(Clause):
+    def __init__(
+        self,
+        order: TokenContext,
+        by: TokenContext,
+        columns: OrderByColumnExpression
+    ):
+        super().__init__([order, by, *columns])
+        self.columns = columns
+
+    @staticmethod
+    def consume(reader: Reader):
+        from parsing.expressions.scalar_expression import ScalarExpression
+        order = reader.expect_word('order')
+        by = reader.expect_word('by')
+        columns = []
+        while True:
+            column = ScalarExpression.consume(reader),
+            asc = reader.consume_optional_word('asc') or reader.consume_optional_word('desc')
+            if reader.curr_value_lower == ',':
+                columns.append(OrderByColumnExpression(column, asc, reader.expect_symbol(',')))
+            else:
+                columns.append(OrderByColumnExpression(column, asc, None))
+                break

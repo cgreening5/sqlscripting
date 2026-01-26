@@ -72,6 +72,14 @@ class Reader:
             + f' expected any of {types}'
         return self.expect(self.curr.type)
     
+    def consume_optional_words(self, *values:str) -> TokenContext:
+        tokens = []
+        for value in values:
+            if self.curr_value_lower == value:
+                tokens.append(self.expect_word(value))
+            else: return None
+        return tokens
+
     def consume_optional_word(self, value:str) -> TokenContext:
         if self.curr_value_lower == value:
             return self.expect_word(value)
@@ -98,12 +106,17 @@ class Reader:
         expressions_or_tokens.append(self.expect_symbol(')'))
         return expressions_or_tokens, parameters
     
-    def peek(self, i):
+    def _pattern(self, i):
         tokens = self._tokens[self._position : min(self._position + i, len(self._tokens))]
         return ''.join([token.value for token in tokens])
 
+    def peek(self, i=1):
+        if self._position + i + 1 >= len(self._tokens):
+            return []
+        return [token.value.lower() for token in self._tokens[self._position + 1, self._position + 1 + i]]
+
     def consume_symbol_from(self, patterns: list[str]):
-        matches = [pattern for pattern in patterns if pattern == self.peek(len(pattern))]
+        matches = [pattern for pattern in patterns if pattern == self._pattern(len(pattern))]
         if len(matches) == 0:
             return None
         match = max(matches, key=lambda match: len(match))

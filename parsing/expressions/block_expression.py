@@ -2,6 +2,7 @@ from parsing.cursor.cursor_expression import CloseCursorExpression, CursorExpres
 from parsing.expressions.clause import Clause
 from parsing.expressions.datatype import DataTypeClause
 from parsing.expressions.declare_expression import DeclareTableVariableExpression, DeclareVariableExpression, SetExpression
+from parsing.expressions.delete import DeleteExpression
 from parsing.expressions.insert_expression import InsertExpression
 from parsing.expressions.scalar_expression import BooleanExpression
 from parsing.expressions.select_expression import SelectExpression
@@ -37,7 +38,9 @@ class BlockExpression(Clause):
     def consume_top_level_expression(reader: Reader):
         if reader.curr.type == Token.WORD:
             value = reader.curr_value_lower
-            if value == 'use':
+            if value == 'go':
+                return GoExpression.consume(reader)
+            elif value == 'use':
                 return UseExpression.consume(reader)
             elif value == 'declare':
                 return BlockExpression._consume_declare(reader)
@@ -72,6 +75,8 @@ class BlockExpression(Clause):
                 return UpdateExpression.consume(reader)
             elif value == 'if':
                 return IfExpression.consume(reader)
+            elif value == 'delete':
+                return DeleteExpression.consume(reader)
             else:
                 raise ValueError(f"Unexpected token '{reader.curr.__repr__()}'")
         else:
@@ -98,6 +103,15 @@ class BlockExpression(Clause):
         else:
             datatype = DataTypeClause.consume(reader)
             return DeclareVariableExpression(declare, variable, as_token, datatype)
+
+class GoExpression(Clause):
+
+    def __init__(self, go):
+        super().__init__([go])
+        
+    @staticmethod
+    def consume(reader: Reader):
+        return GoExpression(reader.expect_word('go'))
 
 class IfExpression(Clause):
 
