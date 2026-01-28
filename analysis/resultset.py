@@ -1,13 +1,15 @@
-from parsing.expressions.scalar_expression import ScalarExpression, AliasedScalarIdentifierExpression
 from typing import Protocol
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from parsing.expressions.scalar_expression import ScalarExpression
 
 class ResultSet(Protocol):
 
-    def columns(self) -> list[ScalarExpression | AliasedScalarIdentifierExpression]:
+    def columns(self) -> list:
         pass
 
-    def trace_column(self, column: ScalarExpression | AliasedScalarIdentifierExpression):
+    def trace_column(self, column: 'ScalarExpression'):
         pass
 
-    def predicate() -> ScalarExpression:
+    def predicate() -> 'ScalarExpression':
         pass

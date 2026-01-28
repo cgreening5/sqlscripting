@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from analysis.resultset import ResultSet
 from parsing.expressions.clause import Clause
 from parsing.expressions.declare_expression import VariableExpression
 from parsing.expressions.scalar_expression import ParentheticalExpression
@@ -117,10 +116,8 @@ class SelectExpression(Clause):
             orderby
         )
 
-    def trace(self, column) -> str:
-        if isinstance(column, AliasedScalarIdentifierExpression):
-            return self.trace(column.expression)
-        raise NotImplementedError(f'Tracing {column.__class__.__name__} column expressions not implemented')
+    def trace(self, tracer, column) -> str:
+        return column.trace(tracer)
 
     def columns(self):
         return self.projection

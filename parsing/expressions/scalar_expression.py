@@ -1,7 +1,8 @@
+from analysis.tracer import Node
 from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.declare_expression import VariableExpression
 from parsing.tokenizer import Token
-from typing import Self, override
+from typing import Self
 from parsing.expressions.clause import Clause
 from parsing.expressions.datatype import DataTypeClause
 from parsing.expressions.token_context import TokenContext
@@ -141,6 +142,8 @@ class ScalarExpression(Clause):
                 return ObjectIdExpression.consume(reader)
             elif reader.curr_value_lower == 'isnull':
                 return IsNullExpression.consume(reader)
+            elif reader.curr_value_lower == 'exists':
+                return ExistsExpression.consume(reader)
             else:
                 return IdentifierExpression.consume(reader)
         elif reader.curr.type == Token.NUMBER:
@@ -283,6 +286,10 @@ class LenExpression(ScalarExpression):
 class NumberLiteralExpression(ScalarExpression):
     def __init__(self, number):
         super().__init__('number', [number])
+        self.number = number
+
+    def trace(self, _) -> str:
+        return Node(Node.LITERAL, self.number.token.value)
 
     @staticmethod
     def consume(reader):
@@ -627,6 +634,10 @@ class AliasedScalarIdentifierExpression(ScalarExpression):
         super().__init__(expression.type, [expression, _as, alias])
         self.expression = expression
         self.alias = alias
+        self.has_name = True
+
+    def get_name(self):
+        return self.alias.token.value
 
     def trace(self, tracer):
         return self.expression.trace(tracer)
