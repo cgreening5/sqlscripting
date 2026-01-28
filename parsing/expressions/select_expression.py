@@ -21,6 +21,7 @@ class SelectExpression(Clause):
             top_n: ScalarExpression,
             distinct: TokenContext | None,
             comma_separated_projection: list[ScalarExpression | TokenContext | VariableAssignmentExpression],
+            into: IntoExpression,
             _from: FromExpression,
             where: TokenContext,
             predicate: BooleanExpression,
@@ -33,6 +34,7 @@ class SelectExpression(Clause):
             top_n, 
             distinct, 
             *comma_separated_projection, 
+            into,
             _from, 
             where, 
             predicate,
@@ -41,11 +43,12 @@ class SelectExpression(Clause):
         self.distinct = distinct
         self.projection: list[ScalarExpression | AliasedScalarIdentifierExpression | VariableAssignmentExpression] \
             = list(filter(lambda c: not isinstance(c, TokenContext), comma_separated_projection))
+        self.into = into
         self._from = _from
-        self.predicate = predicate
+        self._predicate = predicate
         self.groupby = groupby
         self.orderby = orderby
-        self.produces_resultset = True
+        self.produces_resultset = into == None
 
     @classmethod
     def consume(cls, reader: Reader):
@@ -102,20 +105,28 @@ class SelectExpression(Clause):
         if reader.curr_value_lower == 'order':
             orderby = OrderByExpression.consume(reader)
         return SelectExpression(
-            select, 
+            select,
             top, top_n, 
             distinct, 
             comma_separated_projection, 
+            into,
             _from,
             where, 
             predicate,
             groupby,
             orderby
         )
-    
-    def get_resultset(self):
-        predicate = self.predicate
-        return ResultSet(self.projection, self.predicate or True)
+
+    def trace(self, column) -> str:
+        if isinstance(column, AliasedScalarIdentifierExpression):
+            return self.trace(column.expression)
+        raise NotImplementedError(f'Tracing {column.__class__.__name__} column expressions not implemented')
+
+    def columns(self):
+        return self.projection
+
+    def predicate(self):
+        return self._predicate
     
 class GroupByExpression(Clause):
 

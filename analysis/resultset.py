@@ -1,11 +1,13 @@
 from parsing.expressions.scalar_expression import ScalarExpression, AliasedScalarIdentifierExpression
+from typing import Protocol
 
-class ResultSet:
+class ResultSet(Protocol):
 
-    def __init__(self, columns: list[ScalarExpression | AliasedScalarIdentifierExpression], predicate: ScalarExpression):
-        self.columns_list = columns
-        self.columns = {}
-        for column in columns:
-            if isinstance(column, ScalarExpression) and column.has_name:
-                self.columns[column.get_name().lower()] = column
-        self.predicate = predicate
+    def columns(self) -> list[ScalarExpression | AliasedScalarIdentifierExpression]:
+        pass
+
+    def trace_column(self, column: ScalarExpression | AliasedScalarIdentifierExpression):
+        pass
+
+    def predicate() -> ScalarExpression:
+        pass

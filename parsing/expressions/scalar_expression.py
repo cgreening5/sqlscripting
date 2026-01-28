@@ -265,6 +265,9 @@ class AdditionSubtractionExpression(ScalarExpression):
         self.operator = operator
         self.right = right
 
+    def trace(self, tracer) -> str:
+        return f'{self.left.trace(tracer)} {self.operator} {self.right.trace(tracer)}'
+
 class LenExpression(ScalarExpression):
     def __init__(self, len, open_paren: TokenContext, expression: ScalarExpression, closed_paren: TokenContext):
         super().__init__('number', [len, open_paren, expression, closed_paren])
