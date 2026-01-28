@@ -1,17 +1,27 @@
 from analysis.dataservice import DataService
 from analysis.resultset import ResultSet
 from parsing.tokenizer import Tokenizer
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from parsing.expressions.block_expression import BlockExpression
+    from parsing.expressions.scalar_expression import IdentifierExpression
 
 class Node:
 
     LITERAL = 'LITERAL'
+    COLUMN = 'COLUMN'
 
     def __init__(self, node_type: str, value: str):
         self.type = node_type
         self.value = value
 
     def __str__(self):
-        return "Hardcoded value: " + self.value
+        if self.type == Node.LITERAL:
+            return "Hardcoded value: " + self.value
+        elif self.type == Node.COLUMN:
+            return "Column: " + self.value
+        raise NotImplementedError(f"Node type '{self.type}' not implemented.")
 
 class Tracer:
     def __init__(self, block: 'BlockExpression', dataservice: DataService=None):
