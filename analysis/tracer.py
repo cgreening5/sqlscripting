@@ -36,13 +36,33 @@ class BinaryOperationNode(Node):
         self.operator = operator
         self.right = right
 
+    def parenthesize_operand(self) -> bool:
+        if isinstance(self.right, BinaryOperationNode):
+            # Define operator precedence
+            precedence = {
+                'OR': 1,
+                'AND': 2,
+                'NOT': 3,
+                # Add more operators as needed
+            }
+            
+            # Get the precedence of the current and right operators
+            current_precedence = precedence.get(self.operator.upper(), 0)
+            right_precedence = precedence.get(self.right.operator.upper(), 0)
+
+            # Parenthesize if the right operator has a higher precedence
+            return right_precedence > current_precedence
+        return False
+        
+
     def __str__(self):
         left = self.left
-        if left.type not in (Node.LITERAL, Node.COLUMN):
-            left = f'({left})'
+    
         right = self.right
         if right.type not in (Node.LITERAL, Node.COLUMN):
-            right = f'({right})'
+            if self.parenthesize_operand():
+                right = f'({right})'
+    
         return f'{left} {self.operator} {right}'
     
 class ColumnIdentifier(Node):

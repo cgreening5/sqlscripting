@@ -110,7 +110,7 @@ class ScalarExpression(Clause):
     @classmethod
     def _consume(cls, reader: Reader) -> Self:
         if reader.curr.type == Token.QUOTED_IDENTIFIER:
-            return IdentifierExpression.consume(reader)
+            return ColumnIdentifierExpression.consume(reader)
         elif reader.curr.type == Token.WORD:
             if reader.curr.value.lower() == 'cast':
                 return CastExpression.consume(reader)
@@ -328,6 +328,10 @@ class ColumnIdentifierExpression(ScalarExpression):
         self.schema = schema
         self.table = table
         self.column = column
+        self.has_name = True
+
+    def get_name(self):
+        return self.column.token.value
 
     @staticmethod
     def from_parts(database: TokenContext | None, schema: TokenContext | None, table: TokenContext | None, column: TokenContext) -> Self:
@@ -343,13 +347,19 @@ class ColumnIdentifierExpression(ScalarExpression):
 
     def trace(self, context):
         aliased_table = TableIdentifierExpression.from_parts(self.database, self.schema, self.table)
-        table = context.resolve_table_identifier(aliased_table)
-        return ColumnIdentifier(
-            table.database.token.value if table.database else None, 
-            table.schema.token.value if table.schema else None,
-            table.table.token.value if table.table else None,
-            self.column.token.value
-        )
+        if self.table:
+            table = context.resolve_table_identifier(aliased_table)
+            return ColumnIdentifier(
+                table.database.token.value if table.database else None, 
+                table.schema.token.value if table.schema else None,
+                table.table.token.value if table.table else None,
+                self.column.token.value
+            )
+        else:
+            return ColumnIdentifier(
+                None, None, None,
+                self.column.token.value
+            )
 
     @classmethod
     def consume(cls, reader: Reader) -> Self:
