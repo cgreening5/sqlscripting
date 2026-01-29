@@ -1,5 +1,5 @@
 from parsing.expressions.clause import Clause
-from parsing.expressions.scalar_expression import IdentifierExpression, ScalarExpression
+from parsing.expressions.scalar_expression import TableIdentifierExpression, ScalarExpression
 from parsing.reader import Reader
 
 
@@ -14,7 +14,7 @@ class DeleteExpression(Clause):
     def consume(reader: Reader):
         delete = reader.expect_word('delete')
         _from = reader.consume_optional_word('from')
-        table = IdentifierExpression.consume(reader)
+        table = TableIdentifierExpression.consume(reader)
         if reader.curr_value_lower == 'where':
             return DeleteExpression(
                 delete,

@@ -1,4 +1,4 @@
-from analysis.tracer import Node
+from analysis.tracer import BinaryOperationNode, ColumnIdentifier, LiteralNode, Node
 from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.declare_expression import VariableExpression
 from parsing.tokenizer import Token
@@ -18,7 +18,7 @@ class ScalarExpression(Clause):
     def get_name(self) -> str:
         raise NotImplementedError()
 
-    def trace(self, tracer) -> str:
+    def trace(self, context) -> str:
         raise NotImplementedError(self.__class__.__name__ + " does not implement trace method")
 
     @staticmethod
@@ -145,7 +145,7 @@ class ScalarExpression(Clause):
             elif reader.curr_value_lower == 'exists':
                 return ExistsExpression.consume(reader)
             else:
-                return IdentifierExpression.consume(reader)
+                return ColumnIdentifierExpression.consume(reader)
         elif reader.curr.type == Token.NUMBER:
             return NumberLiteralExpression.consume(reader)
         elif reader.curr.type == Token.SYMBOL:
@@ -268,8 +268,12 @@ class AdditionSubtractionExpression(ScalarExpression):
         self.operator = operator
         self.right = right
 
-    def trace(self, tracer) -> str:
-        return f'{self.left.trace(tracer)} {self.operator} {self.right.trace(tracer)}'
+    def trace(self, context):
+        return BinaryOperationNode(
+            self.left.trace(context),
+            self.operator.token.value,
+            self.right.trace(context)
+        )
 
 class LenExpression(ScalarExpression):
     def __init__(self, len, open_paren: TokenContext, expression: ScalarExpression, closed_paren: TokenContext):
@@ -289,26 +293,16 @@ class NumberLiteralExpression(ScalarExpression):
         self.number = number
 
     def trace(self, _) -> str:
-        return Node(Node.LITERAL, self.number.token.value)
+        return LiteralNode(self.number.token.value)
 
     @staticmethod
     def consume(reader):
         return NumberLiteralExpression(reader.expect(Token.NUMBER))
 
 class IdentifierExpression(ScalarExpression):
-    def __init__(self, period_separated_identifiers: list[TokenContext]):
-        assert len(period_separated_identifiers) in (1, 3, 5)
-        super().__init__(None, period_separated_identifiers)
-        self.name = period_separated_identifiers[-1]
-        self.table = None
-        self.schema = None
-        if len(period_separated_identifiers) >= 3:
-            self.table = period_separated_identifiers[2]
-        if len(period_separated_identifiers) == 5:
-            self.schema = period_separated_identifiers[4]
 
     @classmethod
-    def consume(cls, reader: Reader) -> Self:
+    def _consume_identifiers(cls, reader: Reader) -> Self:
         identifier_token_types = [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]
         assert reader.curr.type in identifier_token_types
         identifiers = []
@@ -323,12 +317,96 @@ class IdentifierExpression(ScalarExpression):
             if reader.curr_value_lower == '.':
                 identifiers.append(reader.expect_symbol('.'))
             else:
-                break
-            
-        return IdentifierExpression(identifiers)
+                break    
+        return identifiers
 
-    def trace(self, tracer):
-        return tracer.trace_identifier(self)
+
+class ColumnIdentifierExpression(ScalarExpression):
+    def __init__(self, database, comma1, schema, comma2, table, comma3, column):
+        super().__init__('any', [database, comma1, schema, comma2, table, comma3, column])
+        self.database = database
+        self.schema = schema
+        self.table = table
+        self.column = column
+
+    @staticmethod
+    def from_parts(database: TokenContext | None, schema: TokenContext | None, table: TokenContext | None, column: TokenContext) -> Self:
+        return ColumnIdentifierExpression(
+            database,
+            TokenContext(Token('.', Token.SYMBOL), []) if database else None,
+            schema,
+            TokenContext(Token('.', Token.SYMBOL), []) if schema else None,
+            table,
+            TokenContext(Token('.', Token.SYMBOL), []) if table else None,
+            column
+        )
+
+    def trace(self, context):
+        aliased_table = TableIdentifierExpression.from_parts(self.database, self.schema, self.table)
+        table = context.resolve_table_identifier(aliased_table)
+        return ColumnIdentifier(
+            table.database.token.value if table.database else None, 
+            table.schema.token.value if table.schema else None,
+            table.table.token.value if table.table else None,
+            self.column.token.value
+        )
+
+    @classmethod
+    def consume(cls, reader: Reader) -> Self:
+        identifier_token_types = [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]
+        assert reader.curr.type in identifier_token_types
+        identifiers = []
+        while True:
+            if reader.curr_value_lower == '*':
+                identifiers.append(reader.expect_symbol('*'))
+                break
+            identifier = reader.expect_any_of(identifier_token_types)
+            if identifier.type == Token.WORD:
+                identifier.type = Token.IDENTIFIER
+            identifiers.append(identifier)
+            if reader.curr_value_lower == '.':
+                identifiers.append(reader.expect_symbol('.'))
+            else:
+                break
+        identifiers = [None] * (7 - len(identifiers)) + identifiers
+        return ColumnIdentifierExpression(*identifiers)
+
+class TableIdentifierExpression(Clause):
+
+    def __init__(self, database: TokenContext | None, period1, schema: TokenContext | None, period2, table: TokenContext):
+        super().__init__([database, period1, schema, period2, table])
+        self.database = database
+        self.schema = schema
+        self.table = table
+
+    def from_parts(database: TokenContext | None, schema: TokenContext | None, table: TokenContext) -> Self:
+        return TableIdentifierExpression(
+            database,
+            TokenContext(Token.SYMBOL, '.') if database else None,
+            schema,
+            TokenContext(Token.SYMBOL, '.') if schema else None,
+            table
+        )
+    
+    @classmethod
+    def consume(cls, reader: Reader) -> Self:
+        identifier_token_types = [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]
+        assert reader.curr.type in identifier_token_types
+        identifiers = []
+        while True:
+            if reader.curr_value_lower == '*':
+                identifiers.append(reader.expect_symbol('*'))
+                break
+            identifier = reader.expect_any_of(identifier_token_types)
+            if identifier.type == Token.WORD:
+                identifier.type = Token.IDENTIFIER
+            identifiers.append(identifier)
+            if reader.curr_value_lower == '.':
+                identifiers.append(reader.expect_symbol('.'))
+            else:
+                break
+        identifiers = [None] * (5 - len(identifiers)) + identifiers
+        return TableIdentifierExpression(*identifiers)
 
 class ReplaceExpression(ScalarExpression):
     def __init__(self, replace: TokenContext, arguments: ArgumentsListExpression):

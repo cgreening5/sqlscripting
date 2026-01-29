@@ -1,5 +1,5 @@
 from parsing.expressions.clause import Clause
-from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression, ScalarExpression
+from parsing.expressions.scalar_expression import BooleanExpression, ColumnIdentifierExpression, TableIdentifierExpression, ScalarExpression
 from parsing.reader import Reader
 
 class ColumnUpdateExpression(Clause):
@@ -11,7 +11,7 @@ class ColumnUpdateExpression(Clause):
 
     @staticmethod
     def consume(reader: Reader):
-        column = IdentifierExpression.consume(reader)
+        column = ColumnIdentifierExpression.consume(reader)
         equals = reader.expect_symbol('=')
         val = ScalarExpression.consume(reader)
         comma = reader.expect_symbol(',') if reader.curr_value_lower == ',' else None
@@ -29,7 +29,7 @@ class UpdateExpression(Clause):
 
     def consume(reader: Reader):
         update = reader.expect_word('update')
-        table = IdentifierExpression.consume(reader)
+        table = TableIdentifierExpression.consume(reader)
         _set = reader.expect_word('set')
         updates = [ColumnUpdateExpression.consume(reader)]
         while updates[-1].comma != None:

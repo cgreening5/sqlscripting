@@ -5,23 +5,57 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from parsing.expressions.block_expression import BlockExpression
-    from parsing.expressions.scalar_expression import IdentifierExpression
+    from parsing.expressions.scalar_expression import IdentifierExpression, ColumnIdentifierExpression, TableIdentifierExpression
 
 class Node:
 
     LITERAL = 'LITERAL'
     COLUMN = 'COLUMN'
+    BINARY_OPERATION = 'BINARY_OPERATION'
 
     def __init__(self, node_type: str, value: str):
         self.type = node_type
         self.value = value
 
     def __str__(self):
-        if self.type == Node.LITERAL:
-            return "Hardcoded value: " + self.value
-        elif self.type == Node.COLUMN:
-            return "Column: " + self.value
         raise NotImplementedError(f"Node type '{self.type}' not implemented.")
+    
+class LiteralNode(Node):
+    
+    def __init__(self, value: str):
+        super().__init__(Node.LITERAL, value)
+
+    def __str__(self):
+        return self.value
+
+class BinaryOperationNode(Node):
+
+    def __init__(self, left: Node, operator: str, right: Node):
+        super().__init__(Node.BINARY_OPERATION, f'({left} {operator} {right})')
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def __str__(self):
+        left = self.left
+        if left.type not in (Node.LITERAL, Node.COLUMN):
+            left = f'({left})'
+        right = self.right
+        if right.type not in (Node.LITERAL, Node.COLUMN):
+            right = f'({right})'
+        return f'{left} {self.operator} {right}'
+    
+class ColumnIdentifier(Node):
+
+    def __init__(self, database: str, schema: str, table: str, column: str):
+        super().__init__(Node.COLUMN, f"{database}.{schema}.{table}.{column}")
+        self.database = database
+        self.schema = schema
+        self.table = table
+        self.column = column
+
+    def __str__(self):
+        return '.'.join(identifier for identifier in (self.database, self.schema, self.table, self.column) if identifier is not None)
 
 class Tracer:
     def __init__(self, block: 'BlockExpression', dataservice: DataService=None):
@@ -65,11 +99,11 @@ class Tracer:
                 raise NotImplementedError(f"Not implemented: {column.__class__.__name__}. Only named scalar expressions are supported in result sets.")
         return columns, columns_list
 
-    def trace_identifier(self, column: 'IdentifierExpression'):
-        if self.dataservice and self.dataservice.get_object_type(column.uppercase()) == 'V':
-            view = self.dataservice.get_view_definition(column)
+    def trace_column_identifier(self, identifier: 'ColumnIdentifierExpression'):
+        if self.dataservice and self.dataservice.get_object_type(identifier.uppercase()) == 'V':
+            view = self.dataservice.get_view_definition(identifier)
             from parsing.parser import Parser
             block = Parser(Tokenizer(view).parse()).parse()
             raise NotImplementedError('No support for tracing views')
         else:
-            return column.uppercase()
+            return identifier.uppercase()

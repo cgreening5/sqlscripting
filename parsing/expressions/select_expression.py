@@ -9,7 +9,7 @@ from parsing.reader import Reader
 from parsing.tokenizer import Token
 
 if TYPE_CHECKING:
-    from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression, ScalarExpression, AliasedScalarIdentifierExpression
+    from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression, TableIdentifierExpression, ScalarExpression, AliasedScalarIdentifierExpression
 
 class SelectExpression(Clause):
 
@@ -117,7 +117,10 @@ class SelectExpression(Clause):
         )
 
     def trace(self, tracer, column) -> str:
-        return column.trace(tracer)
+        return column.trace(self)
+
+    def resolve_table_identifier(self, table: TableIdentifierExpression) -> TableIdentifierExpression:
+        return self._from.resolve_table_identifier(table)
 
     def columns(self):
         return self.projection
@@ -168,7 +171,7 @@ class JoinExpression(Clause):
         self, 
         join_type: TokenContext, 
         join: TokenContext, 
-        table: IdentifierExpression | AliasedScalarIdentifierExpression,
+        table: TableIdentifierExpression | AliasedScalarIdentifierExpression,
         on: TokenContext, 
         condition: BooleanExpression
     ):
@@ -179,7 +182,7 @@ class JoinExpression(Clause):
 
     @staticmethod
     def consume(reader: Reader):
-        from parsing.expressions.scalar_expression import BooleanExpression, IdentifierExpression, AliasedScalarIdentifierExpression
+        from parsing.expressions.scalar_expression import BooleanExpression, TableIdentifierExpression, AliasedScalarIdentifierExpression
         join_type = reader.consume_optional_words('left', 'outer') \
             or reader.consume_optional_word('left') \
             or reader.consume_optional_word('inner') \
@@ -190,7 +193,7 @@ class JoinExpression(Clause):
         if reader.curr_value_lower == "(":
             table = ParentheticalExpression.consume(reader)
         else:
-            table = IdentifierExpression.consume(reader)
+            table = TableIdentifierExpression.consume(reader)
         if reader.curr_value_lower !='on':
             _as = reader.consume_optional_word('as')
             table = AliasedTableExpression(table, _as, reader.expect_any_of([Token.WORD, Token.QUOTED_IDENTIFIER]))
@@ -203,18 +206,18 @@ class JoinExpression(Clause):
 
 class FromExpression(Clause):
 
-    def __init__(self, _from: TokenContext, table: IdentifierExpression, joins: list[JoinExpression]):
+    def __init__(self, _from: TokenContext, table: TableIdentifierExpression, joins: list[JoinExpression]):
         super().__init__([_from, table, *joins])
         self.table = table
         self.joins = joins
 
     @classmethod
     def consume(cls, reader:Reader):
-        from parsing.expressions.scalar_expression import IdentifierExpression, AliasedScalarIdentifierExpression
+        from parsing.expressions.scalar_expression import TableIdentifierExpression, AliasedScalarIdentifierExpression
         _from = reader.expect_word('from')
         if not reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]:
             raise ValueError(f"Invalid token: '{reader.curr.value}' ({reader.curr.type})")
-        table = IdentifierExpression.consume(reader)
+        table = TableIdentifierExpression.consume(reader)
         # todo: gah
         if not reader.eof and reader.curr_value_lower not in ['where', 'order', 'group', 'join', 'inner', 'left', ')', 'select', 'outer']:
             table = AliasedTableExpression(
@@ -226,6 +229,16 @@ class FromExpression(Clause):
         while reader.curr_value_lower in ['inner', 'left', 'join', 'outer']:
             joins.append(JoinExpression.consume(reader))
         return FromExpression(_from, table, joins)
+    
+    def resolve_table_identifier(self, table: TableIdentifierExpression) -> TableIdentifierExpression:
+        if isinstance(self.table, AliasedTableExpression) and self.table.alias.token.value.lower() == table.table.token.value.lower():
+            return self.table.table
+        else:
+            for join in self.joins:
+                if isinstance(join, JoinExpression):
+                    if isinstance(join.table, AliasedTableExpression) and join.table.alias.token.value == table:
+                        return join.table.table
+        return table
 
 class IntoExpression(Clause):
 
@@ -243,7 +256,7 @@ class IntoExpression(Clause):
 class AliasedTableExpression(Clause):
     def __init__(
         self, 
-        table: IdentifierExpression, 
+        table: TableIdentifierExpression, 
         _as: TokenContext, 
         alias: TokenContext
     ):

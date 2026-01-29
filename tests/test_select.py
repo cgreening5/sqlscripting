@@ -1,5 +1,5 @@
 import unittest
-from parsing.expressions.scalar_expression import AliasedScalarIdentifierExpression, IdentifierExpression
+from parsing.expressions.scalar_expression import AliasedScalarIdentifierExpression, IdentifierExpression, TableIdentifierExpression
 from parsing.expressions.select_expression import AliasedTableExpression, SelectExpression
 from tests.utilities import parse
 
@@ -34,7 +34,7 @@ class TestSelect(unittest.TestCase):
         select: SelectExpression = parse(
             """select Id from Table1 join Table2 on Table1.Id = Table2.Id"""
         ).expressions[0]
-        self.assertIsInstance(select._from.joins[0].table, IdentifierExpression)
+        self.assertIsInstance(select._from.joins[0].table, TableIdentifierExpression)
 
     def test_multiple_selects(self):
         """select ID fromtable1\nselect Name from table2"""

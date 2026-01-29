@@ -1,6 +1,6 @@
 from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.clause import Clause
-from parsing.expressions.scalar_expression import IdentifierExpression
+from parsing.expressions.scalar_expression import TableIdentifierExpression
 from parsing.expressions.select_expression import SelectExpression
 from parsing.expressions.token_context import TokenContext
 from parsing.reader import Reader
@@ -48,7 +48,7 @@ class InsertExpression(Clause):
             self,
             insert: TokenContext,
             into: TokenContext,
-            table: TokenContext | IdentifierExpression,
+            table: TokenContext | TableIdentifierExpression,
             columns: InsertColumnsExpression,
             select: SelectExpression,
             values: TokenContext,
@@ -71,7 +71,7 @@ class InsertExpression(Clause):
         if reader.curr.type == Token.VARIABLE:
             table = reader.expect(Token.VARIABLE)
         else:
-            table = IdentifierExpression.consume(reader)
+            table = TableIdentifierExpression.consume(reader)
         if reader.curr_value_lower == '(':
             columns = InsertColumnsExpression.consume(reader)
         else:
