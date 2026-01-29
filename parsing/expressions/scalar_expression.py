@@ -1,4 +1,4 @@
-from analysis.tracer import BinaryOperationNode, ColumnIdentifier, LiteralNode, Node
+from analysis.tracer import BinaryOperationNode, ColumnIdentifier, LiteralNode, Node, UnaryOperationNode
 from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.declare_expression import VariableExpression
 from parsing.tokenizer import Token
@@ -24,24 +24,28 @@ class ScalarExpression(Clause):
     @staticmethod
     def consume(reader: Reader):
         return ScalarExpression.consume_possible_or(reader)
-    
+
     @staticmethod
     def consume_possible_or(reader: Reader):
         left = ScalarExpression.consume_possible_and(reader)
         while reader.curr_value_lower == 'or':
             left = BooleanOperationExpression(
                 left, 
-                reader.expect_word('or'), 
+                BooleanOperatorExpression.consume(reader),
                 ScalarExpression.consume_possible_and(reader))
         return left
     
     @staticmethod
     def consume_possible_and(reader: Reader):
+        # Handle NOT at the beginning
+        _not = reader.consume_optional_word('not')
         left = ScalarExpression.consume_possible_comparison(reader)
+        if _not:
+            left = NotExpression(_not, left)
         while reader.curr_value_lower == 'and':
             left = BooleanOperationExpression(
                 left, 
-                reader.expect_word('and'), 
+                BooleanOperatorExpression.consume(reader),
                 ScalarExpression.consume_possible_comparison(reader))
         return left
 
@@ -63,7 +67,7 @@ class ScalarExpression(Clause):
             if boolean_operator:
                 left = BooleanOperationExpression(
                     left,
-                    boolean_operator,
+                    BooleanOperatorExpression(boolean_operator),
                     ScalarExpression.consume(reader)
                 )
             elif reader.curr_value_lower in ['in', 'not', 'like']:
@@ -189,15 +193,13 @@ class ScopeIdentityExpression(ScalarExpression):
     
 class NotExpression(ScalarExpression):
 
-    def __init__(self, _not, expression):
+    def __init__(self, _not, expression: ScalarExpression):
         super().__init__('boolean', [_not, expression])
         self.expression = expression
 
-    @staticmethod
-    def consume(reader: Reader):
-        return NotExpression(
-            ScalarExpression.consume_possible_and(reader)
-        )
+    def trace(self, context):
+        return UnaryOperationNode('NOT', self.expression.trace(context))
+            
 
 class GetDateExpression(ScalarExpression):
 
@@ -246,6 +248,13 @@ class ParentheticalScalarExpression(ScalarExpression):
             type = paranthetical_expression.expression.type
         super().__init__(type, [paranthetical_expression])
         self.paranthetical_expression = paranthetical_expression
+
+    def trace(self, context):
+        from parsing.expressions.select_expression import SelectExpression
+        if isinstance(self.paranthetical_expression.expression, ScalarExpression):
+            return self.paranthetical_expression.expression.trace(context)
+        elif isinstance(self.paranthetical_expression.expression, SelectExpression):
+            raise NotImplementedError("Tracing subquery scalar expressions is not implemented yet")
 
     @staticmethod
     def consume(reader: Reader):
@@ -590,6 +599,10 @@ class BooleanOperatorExpression(Clause):
         match = reader.consume_symbol_from(patterns)
         if match:
             return BooleanOperatorExpression(match)
+        elif reader.curr_value_lower in ['and', 'or']:
+            return BooleanOperatorExpression(reader.expect_word())
+        else:
+            raise ValueError(f'Expected boolean operator but found {reader.curr.type} ({reader.curr_value_lower})')
         
         
 class BooleanOperationExpression(BooleanExpression):
@@ -599,6 +612,15 @@ class BooleanOperationExpression(BooleanExpression):
         self.left = left
         self.operator = operator
         self.right = right
+
+    def trace(self, context):
+        if self.operator is None or self.operator.operator is None:
+            raise ValueError("BooleanOperationExpression missing operator for tracing: left = " + str(self.left) + " op = " + str(self.operator) + " right = " + str(self.right))
+        return BinaryOperationNode(
+            self.left.trace(context),
+            self.operator.operator.token.value,
+            self.right.trace(context)
+        )
 
 class CaseWhenExpression(Clause):
 

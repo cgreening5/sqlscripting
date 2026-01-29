@@ -12,6 +12,7 @@ class Node:
     LITERAL = 'LITERAL'
     COLUMN = 'COLUMN'
     BINARY_OPERATION = 'BINARY_OPERATION'
+    UNARY_OPERATION = 'UNARY_OPERATION'
 
     def __init__(self, node_type: str, value: str):
         self.type = node_type
@@ -28,6 +29,16 @@ class LiteralNode(Node):
     def __str__(self):
         return self.value
 
+class UnaryOperationNode(Node):
+
+    def __init__(self, operator: str, operand: Node):
+        super().__init__(Node.UNARY_OPERATION, f'{operator} {operand}')
+        self.operator = operator
+        self.operand = operand
+
+    def __str__(self):
+        return f'{self.operator} {self.operand}'
+
 class BinaryOperationNode(Node):
 
     def __init__(self, left: Node, operator: str, right: Node):
@@ -35,6 +46,9 @@ class BinaryOperationNode(Node):
         self.left = left
         self.operator = operator
         self.right = right
+        assert self.operator is not None, "BinaryOperationNode operator cannot be None"
+        assert self.left is not None, "BinaryOperationNode left operand cannot be None"
+        assert self.right is not None, "BinaryOperationNode right operand cannot be None"
 
     def parenthesize_operand(self) -> bool:
         if isinstance(self.right, BinaryOperationNode):

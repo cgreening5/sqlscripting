@@ -12,6 +12,15 @@ class TestTracer(unittest.TestCase):
     assert node.type == Node.LITERAL
     assert node.value == '1'
 
+class TestUnaryOperationNode(unittest.TestCase):
+    """Test cases for UnaryOperationNode."""
+
+    def test_literal_node(self):
+        """Test that a literal node is traced correctly."""
+        left = LiteralNode('5')
+        node = BinaryOperationNode(left, '-', LiteralNode('3'))
+        self.assertEqual(str(node), '5 - 3')
+
 
 class TestBinaryOperationNode(unittest.TestCase):
     """Test cases for BinaryOperationNode, focusing on parenthesize_operand() logic."""

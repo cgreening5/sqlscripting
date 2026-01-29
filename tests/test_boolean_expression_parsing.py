@@ -1,6 +1,7 @@
+from tests.utilities import read
 import unittest
 
-from parsing.expressions.scalar_expression import BooleanExpression, BooleanOperationExpression, ComparisonExpression, InExpression
+from parsing.expressions.scalar_expression import BooleanExpression, BooleanOperationExpression, ComparisonExpression, InExpression, ScalarExpression, ParentheticalScalarExpression
 from parsing.expressions.select_expression import SelectExpression
 from parsing.reader import Reader
 from parsing.tokenizer import Tokenizer
@@ -39,4 +40,15 @@ class TestBooleanExpressionParsing(unittest.TestCase):
         block = parse(sql)
         self.assertIsInstance(block.expressions[0].predicate(), BooleanOperationExpression)
         predicate: BooleanOperationExpression = block.expressions[0].predicate
-        self.assertEqual(predicate().operator.token.value, '!=')
+        self.assertEqual(predicate().operator.operator.token.value, '!=')
+
+    def test_parenthesized_not(self):
+        """(NOT A = 1) AND B = 2"""
+        sql = "(NOT A = 1) AND B = 2"
+        boolean = ScalarExpression.consume(read(sql))
+        self.assertIsInstance(boolean, BooleanOperationExpression)
+        self.assertEqual(boolean.operator.operator.token.value.lower(), 'and')
+        # Left side should be a parenthesized NOT expression
+        self.assertIsInstance(boolean.left, ParentheticalScalarExpression)
+        # Right side should be a comparison expression
+        self.assertIsInstance(boolean.right, BooleanOperationExpression)
