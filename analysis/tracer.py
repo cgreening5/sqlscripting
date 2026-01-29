@@ -38,7 +38,7 @@ class BinaryOperationNode(Node):
 
     def parenthesize_operand(self) -> bool:
         if isinstance(self.right, BinaryOperationNode):
-            # Define operator precedence
+            # Define operator precedence (higher number = higher precedence/tighter binding)
             precedence = {
                 'OR': 1,
                 'AND': 2,
@@ -50,8 +50,8 @@ class BinaryOperationNode(Node):
             current_precedence = precedence.get(self.operator.upper(), 0)
             right_precedence = precedence.get(self.right.operator.upper(), 0)
 
-            # Parenthesize if the right operator has a higher precedence
-            return right_precedence > current_precedence
+            # Parenthesize if the right operator has LOWER precedence (binds less tightly)
+            return right_precedence < current_precedence
         return False
         
 

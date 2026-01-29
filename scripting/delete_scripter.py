@@ -4,7 +4,7 @@ from scripting.node import Node
 
 class DeleteScripter:
 
-    def __init__(self, node: Node, print_summary=True, transaction=False):
+    def __init__(self, node: Node, print_summary=False, transaction=False):
         self.node = node
         self.lines = []
         self.summary = {}

@@ -94,7 +94,6 @@ class TestNodeBuilder(unittest.TestCase):
         dataservice = MockDataService()
         builder = Builder(dataservice)
         node = builder.build_node('dbo', 'Applications', 1)
-        print('\n'.join(InsertScripter(node).script()))
 
     def test_back_references(self):
         dataservice = MockDataService()

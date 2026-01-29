@@ -3,7 +3,7 @@ from scripting.node import Node
 
 class InsertScripter:
 
-    def __init__(self, node: Node, print_summary=True, transaction=False):
+    def __init__(self, node: Node, print_summary=False, transaction=False):
         self.node = node
         self.lines = []
         self.summary = {}

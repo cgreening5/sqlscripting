@@ -53,7 +53,7 @@ class ScalarExpression(Clause):
                 left,
                 reader.expect_word('is'),
                 reader.consume_optional_word('not'),
-                ScalarExpression.consume(reader)
+                ScalarExpression._consume(reader)
             )
         else: 
             boolean_operator = reader.consume_symbol_from([
@@ -84,13 +84,18 @@ class ScalarExpression(Clause):
                         _in,
                         expression
                     )
-                else:
+                elif reader.curr_value_lower == 'like':
                     left = LikeExpression(
                         left,
                         _not,
                         reader.expect_word('like'),
                         ScalarExpression.consume(reader),
                     )
+                elif _not != None:
+                        left = NotExpression(
+                            _not,
+                            ScalarExpression.consume_possible_and(reader)
+                        )
         assert isinstance(left, ScalarExpression) \
             or isinstance(left, VariableExpression), \
                 f'Invalid expression: {left.__class__.__name__}'
@@ -180,6 +185,18 @@ class ScopeIdentityExpression(ScalarExpression):
             reader.expect_word('scope_identity'),
             reader.expect_symbol('('),
             reader.expect_symbol(')')
+        )
+    
+class NotExpression(ScalarExpression):
+
+    def __init__(self, _not, expression):
+        super().__init__('boolean', [_not, expression])
+        self.expression = expression
+
+    @staticmethod
+    def consume(reader: Reader):
+        return NotExpression(
+            ScalarExpression.consume_possible_and(reader)
         )
 
 class GetDateExpression(ScalarExpression):
