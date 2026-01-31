@@ -23,3 +23,6 @@ class TokenContext:
             return self.token.value + ''.join(token.value for token in self.whitespace)
         else:
             return self.token.value.lower() + ''.join(token.value for token in self.whitespace)
+    
+    def strip(self):
+        return TokenContext(self.token, [])

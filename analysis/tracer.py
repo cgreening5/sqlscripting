@@ -1,11 +1,13 @@
 from analysis.dataservice import DataService
 from analysis.resultset import ResultSet
+from parsing.expressions.scalar_expression import TableIdentifierExpression
+from parsing.expressions.scalar_expression import ScalarExpression, ColumnIdentifierExpression
+from parsing.expressions.select_expression import SelectExpression
 from parsing.tokenizer import Tokenizer
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from parsing.expressions.block_expression import BlockExpression
-    from parsing.expressions.scalar_expression import IdentifierExpression, ColumnIdentifierExpression, TableIdentifierExpression
 
 class Node:
 
@@ -96,7 +98,7 @@ class Tracer:
         self.block = block
         self.dataservice = dataservice
 
-    def trace(self, column: str = None, column_index: int = None, resultset_index: int = None):
+    def trace(self, column: str = None, column_index: int = None, resultset_index: int = None) -> 'ScalarExpression':
         self.resultsets: list[ResultSet] = []
         for expression in self.block.expressions:
             if expression.produces_resultset:
@@ -133,7 +135,7 @@ class Tracer:
                 raise NotImplementedError(f"Not implemented: {column.__class__.__name__}. Only named scalar expressions are supported in result sets.")
         return columns, columns_list
 
-    def trace_column_identifier(self, identifier: 'ColumnIdentifierExpression'):
+    def trace_column_identifier(self, identifier: ColumnIdentifierExpression):
         if self.dataservice and self.dataservice.get_object_type(identifier.uppercase()) == 'V':
             view = self.dataservice.get_view_definition(identifier)
             from parsing.parser import Parser
@@ -141,3 +143,21 @@ class Tracer:
             raise NotImplementedError('No support for tracing views')
         else:
             return identifier.uppercase()
+        
+    def trace_table_identifier(self, identifier: TableIdentifierExpression):
+        if identifier.table.token.value.startswith("#"):
+            source = self.find_temp_table(identifier.table.token.value)
+            print(source.lowercase())
+        elif self.dataservice and self.dataservice.get_object_type(identifier.uppercase()) == 'V':
+            view = self.dataservice.get_view_definition(identifier.table.token.value)
+            from parsing.parser import Parser
+            block = Parser(Tokenizer(view).parse()).parse()
+            raise NotImplementedError('No support for tracing views')
+        else:
+            return identifier.uppercase()
+        
+    def find_temp_table(self, identifier: str):
+        for expression in self.block.expressions:
+            if isinstance(expression, SelectExpression) and expression.into != None:
+                if expression.into.dest.token.value.lower() == identifier.lower():
+                    return expression

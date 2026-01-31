@@ -1,4 +1,3 @@
-from analysis.tracer import BinaryOperationNode, ColumnIdentifier, LiteralNode, Node, UnaryOperationNode
 from parsing.expressions.arguments_list import ArgumentsListExpression
 from parsing.expressions.declare_expression import VariableExpression
 from parsing.tokenizer import Token
@@ -18,8 +17,11 @@ class ScalarExpression(Clause):
     def get_name(self) -> str:
         raise NotImplementedError()
 
-    def trace(self, context) -> str:
-        raise NotImplementedError(self.__class__.__name__ + " does not implement trace method")
+    def trace(self, context) -> Clause:
+        # Default implementation
+        # Will fail if expression constructor is not equivalent to parent
+        tokens = [token.trace(context) if isinstance(token, ScalarExpression) else token for token in self.tokens]
+        return self.__class__(*tokens)
 
     @staticmethod
     def consume(reader: Reader):
@@ -119,7 +121,10 @@ class ScalarExpression(Clause):
     @classmethod
     def _consume(cls, reader: Reader) -> Self:
         if reader.curr.type == Token.QUOTED_IDENTIFIER:
-            return ColumnIdentifierExpression.consume(reader)
+            if reader.curr_value_lower.startswith("["):
+                return ColumnIdentifierExpression.consume(reader)
+            elif reader.curr_value_lower.startswith("'"):
+                return StringLiteralExpression.consume(reader)
         elif reader.curr.type == Token.WORD:
             if reader.curr.value.lower() == 'cast':
                 return CastExpression.consume(reader)
@@ -196,10 +201,6 @@ class NotExpression(ScalarExpression):
     def __init__(self, _not, expression: ScalarExpression):
         super().__init__('boolean', [_not, expression])
         self.expression = expression
-
-    def trace(self, context):
-        return UnaryOperationNode('NOT', self.expression.trace(context))
-            
 
 class GetDateExpression(ScalarExpression):
 
@@ -294,13 +295,6 @@ class AdditionSubtractionExpression(ScalarExpression):
         self.operator = operator
         self.right = right
 
-    def trace(self, context):
-        return BinaryOperationNode(
-            self.left.trace(context),
-            self.operator.token.value,
-            self.right.trace(context)
-        )
-
 class LenExpression(ScalarExpression):
     def __init__(self, len, open_paren: TokenContext, expression: ScalarExpression, closed_paren: TokenContext):
         super().__init__('number', [len, open_paren, expression, closed_paren])
@@ -314,16 +308,22 @@ class LenExpression(ScalarExpression):
         return LenExpression(len, open_paren, expression, closing_paren)
 
 class NumberLiteralExpression(ScalarExpression):
-    def __init__(self, number):
+    def __init__(self, number: TokenContext):
         super().__init__('number', [number])
         self.number = number
-
-    def trace(self, _) -> str:
-        return LiteralNode(self.number.token.value)
 
     @staticmethod
     def consume(reader):
         return NumberLiteralExpression(reader.expect(Token.NUMBER))
+    
+class StringLiteralExpression(ScalarExpression):
+
+    def __init__(self, string: TokenContext):
+        super().__init__('text', [string])
+
+    @staticmethod
+    def consume(reader):
+        return StringLiteralExpression(reader.expect(Token.QUOTED_IDENTIFIER))
 
 class IdentifierExpression(ScalarExpression):
 
@@ -362,31 +362,19 @@ class ColumnIdentifierExpression(ScalarExpression):
     @staticmethod
     def from_parts(database: TokenContext | None, schema: TokenContext | None, table: TokenContext | None, column: TokenContext) -> Self:
         return ColumnIdentifierExpression(
-            database,
-            TokenContext(Token('.', Token.SYMBOL), []) if database else None,
-            schema,
-            TokenContext(Token('.', Token.SYMBOL), []) if schema else None,
-            table,
-            TokenContext(Token('.', Token.SYMBOL), []) if table else None,
-            column
+            database.strip() if database else None,
+            TokenContext(Token(Token.SYMBOL, '.'), []) if database else None,
+            schema.strip() if schema else None,
+            TokenContext(Token(Token.SYMBOL, '.'), []) if schema else None,
+            table.strip() if table else None,
+            TokenContext(Token(Token.SYMBOL, '.'), []) if table else None,
+            column.strip()
         )
 
     def trace(self, context):
-        aliased_table = TableIdentifierExpression.from_parts(self.database, self.schema, self.table)
-        if self.table:
-            table = context.resolve_table_identifier(aliased_table)
-            return ColumnIdentifier(
-                table.database.token.value if table.database else None, 
-                table.schema.token.value if table.schema else None,
-                table.table.token.value if table.table else None,
-                self.column.token.value
-            )
-        else:
-            return ColumnIdentifier(
-                None, None, None,
-                self.column.token.value
-            )
-
+        table: TableIdentifierExpression = context.resolve_table_identifier(self.table)
+        return ColumnIdentifierExpression.from_parts(table.database, table.schema, table.table, self.column)
+    
     @classmethod
     def consume(cls, reader: Reader) -> Self:
         identifier_token_types = [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]
@@ -455,9 +443,6 @@ class ReplaceExpression(ScalarExpression):
         arguments = ArgumentsListExpression.consume(reader)
 
         return ReplaceExpression(replace, arguments)
-
-    def trace(self, tracer):
-        return f'REPLACE({self.string.trace(tracer), self.pattern.trace(tracer), self.new_string.trace(tracer)})'
 
 class RightExpression(ScalarExpression):
     def __init__(
@@ -612,15 +597,6 @@ class BooleanOperationExpression(BooleanExpression):
         self.left = left
         self.operator = operator
         self.right = right
-
-    def trace(self, context):
-        if self.operator is None or self.operator.operator is None:
-            raise ValueError("BooleanOperationExpression missing operator for tracing: left = " + str(self.left) + " op = " + str(self.operator) + " right = " + str(self.right))
-        return BinaryOperationNode(
-            self.left.trace(context),
-            self.operator.operator.token.value,
-            self.right.trace(context)
-        )
 
 class CaseWhenExpression(Clause):
 

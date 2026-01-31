@@ -1,16 +1,24 @@
 import unittest
 
 from analysis.tracer import Node, Tracer, BinaryOperationNode, LiteralNode
-from parsing.expressions.scalar_expression import ScalarExpression
+from parsing.expressions.scalar_expression import NumberLiteralExpression, ScalarExpression, TableIdentifierExpression
 from parsing.expressions.select_expression import SelectExpression
-from parsing.tokenizer import Tokenizer
+from parsing.expressions.token_context import TokenContext
+from parsing.tokenizer import Token, Tokenizer
 from tests.utilities import parse, read
 
+class MockTableResolver:
+
+    def resolve_table_identifier(self, _) -> TableIdentifierExpression:
+        return TableIdentifierExpression.from_parts(None, None, TokenContext(Token(Token.WORD, 'Table'), []))
+
 class TestTracer(unittest.TestCase):
-    block = parse("select 1 as Col1 from Table1")
-    node = Tracer(block).trace("Col1")
-    assert node.type == Node.LITERAL
-    assert node.value == '1'
+
+    def test_trace_literal(self):
+        block = parse("select 1 as Col1 from Table1")
+        node = Tracer(block).trace("Col1")
+        self.assertIsInstance(node, NumberLiteralExpression)
+        self.assertEqual(node.number.token.value, '1')
 
 class TestUnaryOperationNode(unittest.TestCase):
     """Test cases for UnaryOperationNode."""
@@ -127,4 +135,4 @@ class TestBinaryOperationNode(unittest.TestCase):
         """Test NOT operator precedence in relation to AND and OR."""
         sql = "A = 1 AND (NOT B = 2) OR C = 3"
         boolean = ScalarExpression.consume(read(sql))
-        self.assertTrue(boolean.trace(None), 'A = 1 AND NOT B = 2 OR C = 3')
+        self.assertTrue(boolean.trace(MockTableResolver()), 'A = 1 AND NOT B = 2 OR C = 3')

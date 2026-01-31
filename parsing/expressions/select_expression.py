@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from parsing.expressions.clause import Clause
 from parsing.expressions.declare_expression import VariableExpression
-from parsing.expressions.scalar_expression import ParentheticalExpression
+from parsing.expressions.scalar_expression import ColumnIdentifierExpression, ParentheticalExpression
 from parsing.expressions.token_context import TokenContext
 from parsing.expressions.variable_assignment import VariableAssignmentExpression
 from parsing.reader import Reader
@@ -117,10 +117,14 @@ class SelectExpression(Clause):
         )
 
     def trace(self, tracer, column) -> str:
+        self.tracer = tracer            
         return column.trace(self)
-
-    def resolve_table_identifier(self, table: TableIdentifierExpression) -> TableIdentifierExpression:
-        return self._from.resolve_table_identifier(table)
+    
+    def resolve_table_identifier(self, table: TableIdentifierExpression):
+        table = self._from.resolve_table_identifier(table)
+        if self.tracer:
+            print(self.tracer.trace_table_identifier(table))
+        return table
 
     def columns(self):
         return self.projection
@@ -213,7 +217,7 @@ class FromExpression(Clause):
 
     @classmethod
     def consume(cls, reader:Reader):
-        from parsing.expressions.scalar_expression import TableIdentifierExpression, AliasedScalarIdentifierExpression
+        from parsing.expressions.scalar_expression import TableIdentifierExpression
         _from = reader.expect_word('from')
         if not reader.curr.type in [Token.QUOTED_IDENTIFIER, Token.WORD, Token.VARIABLE, Token.TEMP_TABLE]:
             raise ValueError(f"Invalid token: '{reader.curr.value}' ({reader.curr.type})")
@@ -231,6 +235,8 @@ class FromExpression(Clause):
         return FromExpression(_from, table, joins)
     
     def resolve_table_identifier(self, table: TableIdentifierExpression) -> TableIdentifierExpression:
+        if table is None and self.joins == []:
+            return self.table.table
         if isinstance(self.table, AliasedTableExpression) and self.table.alias.token.value.lower() == table.table.token.value.lower():
             return self.table.table
         else:
